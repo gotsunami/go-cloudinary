@@ -50,7 +50,8 @@ func Dial(uri string) (*Service, error) {
 		apiKey:    u.User.Username(),
 		apiSecret: secret,
 	}
-	// Upload URI to the service
+	// Default upload URI to the service. Can change at runtime in the
+	// Upload() function for raw file uploading.
 	up, err := url.Parse(fmt.Sprintf("%s/%s/image/upload/", baseUploadUrl, s.cloudName))
 	if err != nil {
 		return nil, err
@@ -69,8 +70,8 @@ func (s *Service) ApiKey() string {
 	return s.apiKey
 }
 
-// UploadURI returns the URI used to upload content to the Cloudinary service.
-func (s *Service) UploadURI() *url.URL {
+// DefaultUploadURI returns the default URI used to upload images to the Cloudinary service.
+func (s *Service) DefaultUploadURI() *url.URL {
 	return s.uploadURI
 }
 
@@ -86,8 +87,13 @@ func cleanAssetName(path string) string {
 	return publicId[:len(publicId)-len(filepath.Ext(publicId))]
 }
 
-// Upload a file name in the cloud. publicId is the unique identifier of the
-// ressource in the cloud. It can be an empty string.
+// Upload a file name in the cloud. Set ramdomPublicId to true to let the
+// service generate a unique random public id. If set to false, the ressource's
+// public id is computed using the absolute path to the file.
+//
+// For example, a raw file /tmp/css/default.css will be stored with a public
+// name of css/default.css (raw file keeps its extension), but an image file
+// /tmp/images/logo.png will be stored as images/logo..
 func (s *Service) Upload(path string, randomPublicId bool) error {
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
