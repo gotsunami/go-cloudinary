@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"path/filepath"
 )
 
 type Config struct {
@@ -42,16 +41,6 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	settings.CloudinaryURI = cURI
 	return settings, nil
-}
-
-func walkIt(path string, info os.FileInfo, err error) error {
-	if info.IsDir() {
-		return nil
-	}
-	if err := service.Upload(path, false); err != nil {
-		log.Fatal(err)
-	}
-	return nil
 }
 
 func main() {
@@ -87,20 +76,7 @@ ressource (cloudinary, mongodb) availability.
 	}
 
 	// Upload file
-	if *uploadPath != "" {
-		info, err := os.Stat(*uploadPath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("Uploading...")
-		if info.IsDir() {
-			if err := filepath.Walk(*uploadPath, walkIt); err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			if err := service.Upload(*uploadPath, false); err != nil {
-				log.Fatal(err)
-			}
-		}
+	if err := service.Upload(*uploadPath, false); err != nil {
+		log.Fatal(err)
 	}
 }

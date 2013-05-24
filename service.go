@@ -87,14 +87,18 @@ func cleanAssetName(path string) string {
 	return publicId[:len(publicId)-len(filepath.Ext(publicId))]
 }
 
-// Upload a file name in the cloud. Set ramdomPublicId to true to let the
-// service generate a unique random public id. If set to false, the ressource's
-// public id is computed using the absolute path to the file.
-//
-// For example, a raw file /tmp/css/default.css will be stored with a public
-// name of css/default.css (raw file keeps its extension), but an image file
-// /tmp/images/logo.png will be stored as images/logo..
-func (s *Service) Upload(path string, randomPublicId bool) error {
+func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
+	if info.IsDir() {
+		return nil
+	}
+	if err := s.uploadFile(path, false); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Upload file to the service. See Upload().
+func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 
@@ -102,7 +106,6 @@ func (s *Service) Upload(path string, randomPublicId bool) error {
 	var publicId string
 	if !randomPublicId {
 		publicId = cleanAssetName(path)
-		fmt.Println(publicId)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
 			return err
@@ -164,7 +167,6 @@ func (s *Service) Upload(path string, randomPublicId bool) error {
 	if !strings.HasPrefix(ftype, imageType) {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
-	fmt.Println(upURI)
 	req, err := http.NewRequest("POST", upURI, buf)
 	if err != nil {
 		return err
@@ -181,8 +183,31 @@ func (s *Service) Upload(path string, randomPublicId bool) error {
 	return nil
 }
 
-// Upload all files in a directory, recursively.
-func (s *Service) UploadDir(path string) error {
+// Upload a file or a set of files in the cloud. Set ramdomPublicId to true
+// to let the service generate a unique random public id. If set to false,
+// the ressource's // public id is computed using the absolute path to the file.
+//
+// For example, a raw file /tmp/css/default.css will be stored with a public
+// name of css/default.css (raw file keeps its extension), but an image file
+// /tmp/images/logo.png will be stored as images/logo.
+//
+// If the source path is a directory, all files are recursively uploaded to
+// the cloud service.
+func (s *Service) Upload(path string, randomPublicId bool) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Uploading...")
+	if info.IsDir() {
+		if err := filepath.Walk(path, s.walkIt); err != nil {
+			return err
+		}
+	} else {
+		if err := s.uploadFile(path, randomPublicId); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
