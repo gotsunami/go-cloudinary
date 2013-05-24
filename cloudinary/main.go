@@ -7,11 +7,9 @@ import (
 	"github.com/matm/go-cloudinary"
 	"github.com/outofpluto/goconfig/config"
 	"log"
-	"mime"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type Config struct {
@@ -50,20 +48,8 @@ func walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	ftype := mime.TypeByExtension(filepath.Ext(path))
-	if strings.HasPrefix(ftype, "image") {
-		fmt.Printf("Uploading %s (%s)\n", path, mime.TypeByExtension(filepath.Ext(path)))
-		idx := strings.LastIndex(path, "/") //FIXME
-		if idx != -1 {
-			idx = strings.LastIndex(path[:idx], "/")
-		}
-		publicId := path[idx+1:]
-		fmt.Println(publicId)
-		/*
-			if err := service.Upload(path, ""); err != nil {
-				log.Fatal(err)
-			}
-		*/
+	if err := service.Upload(path, false); err != nil {
+		log.Fatal(err)
 	}
 	return nil
 }
@@ -106,12 +92,13 @@ ressource (cloudinary, mongodb) availability.
 		if err != nil {
 			log.Fatal(err)
 		}
+		fmt.Println("Uploading...")
 		if info.IsDir() {
 			if err := filepath.Walk(*uploadPath, walkIt); err != nil {
 				log.Fatal(err)
 			}
 		} else {
-			if err := service.Upload(*uploadPath, ""); err != nil {
+			if err := service.Upload(*uploadPath, false); err != nil {
 				log.Fatal(err)
 			}
 		}

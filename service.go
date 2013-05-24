@@ -6,16 +6,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
 	baseUploadUrl = "http://api.cloudinary.com/v1_1"
+	imageType     = "image"
+	rawType       = "raw"
 )
 
 type Service struct {
@@ -69,14 +74,29 @@ func (s *Service) UploadURI() *url.URL {
 	return s.uploadURI
 }
 
+// cleanAssetName returns an asset name from the parent dirname and
+// the file name without extension. The path /tmp/css/default.css will
+// return css/default.
+func cleanAssetName(path string) string {
+	idx := strings.LastIndex(path, string(os.PathSeparator))
+	if idx != -1 {
+		idx = strings.LastIndex(path[:idx], string(os.PathSeparator))
+	}
+	publicId := path[idx+1:]
+	return publicId[:len(publicId)-len(filepath.Ext(publicId))]
+}
+
 // Upload a file name in the cloud. publicId is the unique identifier of the
 // ressource in the cloud. It can be an empty string.
-func (s *Service) Upload(path, publicId string) error {
+func (s *Service) Upload(path string, randomPublicId bool) error {
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 
 	// Write public ID
-	if publicId != "" {
+	var publicId string
+	if !randomPublicId {
+		publicId = cleanAssetName(path)
+		fmt.Println(publicId)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
 			return err
@@ -102,7 +122,7 @@ func (s *Service) Upload(path, publicId string) error {
 	// Write signature
 	hash := sha1.New()
 	part := fmt.Sprintf("timestamp=%s%s", timestamp, s.apiSecret)
-	if publicId != "" {
+	if !randomPublicId {
 		part = fmt.Sprintf("public_id=%s&%s", publicId, part)
 	}
 	io.WriteString(hash, part)
@@ -132,7 +152,14 @@ func (s *Service) Upload(path, publicId string) error {
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
 
-	req, err := http.NewRequest("POST", s.uploadURI.String(), buf)
+	upURI := s.uploadURI.String()
+	ftype := mime.TypeByExtension(filepath.Ext(path))
+	// Different URL for raw data upload
+	if !strings.HasPrefix(ftype, imageType) {
+		upURI = strings.Replace(upURI, imageType, rawType, 1)
+	}
+	fmt.Println(upURI)
+	req, err := http.NewRequest("POST", upURI, buf)
 	if err != nil {
 		return err
 	}
@@ -142,7 +169,7 @@ func (s *Service) Upload(path, publicId string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(resp.Status, s.uploadURI)
+	fmt.Println(resp.Status, upURI)
 	io.Copy(os.Stderr, resp.Body)
 
 	return nil
