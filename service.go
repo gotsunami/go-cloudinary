@@ -30,9 +30,9 @@ type Service struct {
 	uploadURI *url.URL
 }
 
-// Dial will use the url to connect to the cloudinary service.
+// Dial will use the url to connect to the Cloudinary service.
 // The uri parameter must be a valid URI with the cloudinary:// scheme,
-// i.e. cloudinary://api_key:api_secret@clound_name.
+// e.g. cloudinary://api_key:api_secret@cloud_name.
 func Dial(uri string) (*Service, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -185,7 +185,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 
 // Upload a file or a set of files in the cloud. Set ramdomPublicId to true
 // to let the service generate a unique random public id. If set to false,
-// the ressource's // public id is computed using the absolute path to the file.
+// the ressource's public id is computed using the absolute path to the file.
 //
 // For example, a raw file /tmp/css/default.css will be stored with a public
 // name of css/default.css (raw file keeps its extension), but an image file
