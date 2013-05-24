@@ -76,6 +76,7 @@ ressource (cloudinary, mongodb) availability.
 	}
 
 	// Upload file
+	fmt.Println("Uploading...")
 	if err := service.Upload(*uploadPath, false); err != nil {
 		log.Fatal(err)
 	}

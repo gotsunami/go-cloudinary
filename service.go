@@ -3,6 +3,7 @@ package cloudinary
 import (
 	"bytes"
 	"crypto/sha1"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,10 +25,19 @@ const (
 )
 
 type Service struct {
-	cloudName string
-	apiKey    string
-	apiSecret string
-	uploadURI *url.URL
+	cloudName  string
+	apiKey     string
+	apiSecret  string
+	uploadURI  *url.URL
+	mongoDbURI *url.URL // Can be nil: upload sync disabled
+}
+
+// Upload response after uploading a file.
+type uploadResponse struct {
+	PublicId     string `json:"public_id"`
+	Version      uint   `json:"version"`
+	Format       string `json:"format"`
+	ResourceType string `json:"resource_type"` // "image" or "raw"
 }
 
 // Dial will use the url to connect to the Cloudinary service.
@@ -58,6 +68,22 @@ func Dial(uri string) (*Service, error) {
 	}
 	s.uploadURI = up
 	return s, nil
+}
+
+// UseDatabase connects to a mongoDB database and stores upload JSON
+// responses, along with a source file checksum to prevent uploading
+// the same file twice. Stored information is used by Url() to build
+// a public URL for accessing the uploaded resource.
+func (s *Service) UseDatabase(mongoDbURI string) error {
+	u, err := url.Parse(mongoDbURI)
+	if err != nil {
+		return err
+	}
+	if u.Scheme != "mongodb" {
+		return errors.New("Missing mongodb:// scheme in URI")
+	}
+	s.mongoDbURI = u
+	return nil
 }
 
 // CloudName returns the cloud name used to access the Cloudinary service.
@@ -177,15 +203,26 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(resp.Status, upURI)
-	io.Copy(os.Stderr, resp.Body)
+
+	if resp.StatusCode == http.StatusOK {
+		// Body is JSON data and looks like:
+		// {"public_id":"Downloads/file","version":1369431906,"format":"png","resource_type":"image"}
+		dec := json.NewDecoder(resp.Body)
+		upInfo := new(uploadResponse)
+		if err := dec.Decode(upInfo); err != nil {
+			return err
+		}
+		fmt.Println(upInfo.PublicId)
+	} else {
+		return errors.New("Request error: " + resp.Status)
+	}
 
 	return nil
 }
 
 // Upload a file or a set of files in the cloud. Set ramdomPublicId to true
 // to let the service generate a unique random public id. If set to false,
-// the ressource's public id is computed using the absolute path to the file.
+// the resource's public id is computed using the absolute path to the file.
 //
 // For example, a raw file /tmp/css/default.css will be stored with a public
 // name of css/default.css (raw file keeps its extension), but an image file
@@ -198,7 +235,6 @@ func (s *Service) Upload(path string, randomPublicId bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Uploading...")
 	if info.IsDir() {
 		if err := filepath.Walk(path, s.walkIt); err != nil {
 			return err
@@ -212,7 +248,7 @@ func (s *Service) Upload(path string, randomPublicId bool) error {
 }
 
 // Url returns the complete access path in the cloud to the
-// ressource designed by publicId or the empty string if
+// resource designed by publicId or the empty string if
 // no match.
 func (s *Service) Url(publicId string) string {
 	return ""
