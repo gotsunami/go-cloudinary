@@ -253,3 +253,47 @@ func (s *Service) Upload(path string, randomPublicId bool) error {
 func (s *Service) Url(publicId string) string {
 	return ""
 }
+
+// Delete deletes an image uploaded to Cloudinary.
+func (s *Service) Delete(publicId string) error {
+	// TODO: also delete resource entry from database (if used)
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	data := url.Values{
+		"api_key":   []string{s.apiKey},
+		"public_id": []string{publicId},
+		"timestamp": []string{timestamp},
+	}
+
+	// Signature
+	hash := sha1.New()
+	part := fmt.Sprintf("public_id=%s&timestamp=%s%s", publicId, timestamp, s.apiSecret)
+	io.WriteString(hash, part)
+	data.Set("signature", fmt.Sprintf("%x", hash.Sum(nil)))
+
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/image/destroy/", baseUploadUrl, s.cloudName), data)
+	if err != nil {
+		return err
+	}
+	dec := json.NewDecoder(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		// JSON error looks like {"error":{"message":"Missing required parameter - public_id"}}
+		var errorMsg interface{}
+		if err := dec.Decode(&errorMsg); err != nil {
+			return err
+		}
+		m := errorMsg.(map[string]interface{})
+		if e, ok := m["error"]; ok {
+			return errors.New(e.(map[string]interface{})["message"].(string))
+		}
+		return nil
+	}
+	var okMsg interface{}
+	if err := dec.Decode(&okMsg); err != nil {
+		return err
+	}
+	m := okMsg.(map[string]interface{})
+	if e, ok := m["result"]; ok {
+		fmt.Println(e.(string))
+	}
+	return nil
+}

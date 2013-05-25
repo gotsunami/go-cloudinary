@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/matm/go-cloudinary"
 	"github.com/outofpluto/goconfig/config"
-	"log"
 	"net/url"
 	"os"
 )
@@ -43,6 +42,11 @@ func LoadConfig(path string) (*Config, error) {
 	return settings, nil
 }
 
+func fatal(msg string) {
+	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+	os.Exit(1)
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] settings.conf \n", os.Args[0]))
@@ -57,6 +61,7 @@ ressource (cloudinary, mongodb) availability.
 	}
 
 	uploadPath := flag.String("u", "", "path to the file or directory to upload")
+	deleteId := flag.String("d", "", "delete remote file by upload_id")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -72,12 +77,19 @@ ressource (cloudinary, mongodb) availability.
 
 	service, err = cloudinary.Dial(settings.CloudinaryURI.String())
 	if err != nil {
-		log.Fatal(err)
+		fatal(err.Error())
 	}
 
 	// Upload file
-	fmt.Println("Uploading...")
-	if err := service.Upload(*uploadPath, false); err != nil {
-		log.Fatal(err)
+	if *uploadPath != "" {
+		fmt.Println("Uploading ...")
+		if err := service.Upload(*uploadPath, false); err != nil {
+			fatal(err.Error())
+		}
+	} else if *deleteId != "" {
+		fmt.Printf("Deleting %s ...\n", *deleteId)
+		if err := service.Delete(*deleteId); err != nil {
+			fatal(err.Error())
+		}
 	}
 }
