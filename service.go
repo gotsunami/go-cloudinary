@@ -275,23 +275,22 @@ func (s *Service) Delete(publicId string) error {
 		return err
 	}
 	dec := json.NewDecoder(resp.Body)
+	var msg interface{}
 	if resp.StatusCode != http.StatusOK {
 		// JSON error looks like {"error":{"message":"Missing required parameter - public_id"}}
-		var errorMsg interface{}
-		if err := dec.Decode(&errorMsg); err != nil {
+		if err := dec.Decode(&msg); err != nil {
 			return err
 		}
-		m := errorMsg.(map[string]interface{})
+		m := msg.(map[string]interface{})
 		if e, ok := m["error"]; ok {
 			return errors.New(e.(map[string]interface{})["message"].(string))
 		}
 		return nil
 	}
-	var okMsg interface{}
-	if err := dec.Decode(&okMsg); err != nil {
+	if err := dec.Decode(&msg); err != nil {
 		return err
 	}
-	m := okMsg.(map[string]interface{})
+	m := msg.(map[string]interface{})
 	if e, ok := m["result"]; ok {
 		fmt.Println(e.(string))
 	}
