@@ -28,7 +28,8 @@ type Service struct {
 	cloudName  string
 	apiKey     string
 	apiSecret  string
-	uploadURI  *url.URL
+	uploadURI  *url.URL // To upload resources
+	adminURI   *url.URL // To use the admin API
 	mongoDbURI *url.URL // Can be nil: upload sync disabled
 }
 
@@ -67,6 +68,14 @@ func Dial(uri string) (*Service, error) {
 		return nil, err
 	}
 	s.uploadURI = up
+
+	// Admin API url
+	adm, err := url.Parse(fmt.Sprintf("%s/%s", baseAdminUrl, s.cloudName))
+	if err != nil {
+		return nil, err
+	}
+	adm.User = url.UserPassword(s.apiKey, s.apiSecret)
+	s.adminURI = adm
 	return s, nil
 }
 
@@ -254,6 +263,26 @@ func (s *Service) Url(publicId string) string {
 	return ""
 }
 
+func handleHttpResponse(resp *http.Response) (map[string]interface{}, error) {
+	if resp == nil {
+		return nil, errors.New("nil http response")
+	}
+	dec := json.NewDecoder(resp.Body)
+	var msg interface{}
+	if err := dec.Decode(&msg); err != nil {
+		return nil, err
+	}
+	m := msg.(map[string]interface{})
+	if resp.StatusCode != http.StatusOK {
+		// JSON error looks like {"error":{"message":"Missing required parameter - public_id"}}
+		if e, ok := m["error"]; ok {
+			return nil, errors.New(e.(map[string]interface{})["message"].(string))
+		}
+		return nil, errors.New(resp.Status)
+	}
+	return m, nil
+}
+
 // Delete deletes an image uploaded to Cloudinary.
 func (s *Service) Delete(publicId string) error {
 	// TODO: also delete resource entry from database (if used)
@@ -274,23 +303,11 @@ func (s *Service) Delete(publicId string) error {
 	if err != nil {
 		return err
 	}
-	dec := json.NewDecoder(resp.Body)
-	var msg interface{}
-	if resp.StatusCode != http.StatusOK {
-		// JSON error looks like {"error":{"message":"Missing required parameter - public_id"}}
-		if err := dec.Decode(&msg); err != nil {
-			return err
-		}
-		m := msg.(map[string]interface{})
-		if e, ok := m["error"]; ok {
-			return errors.New(e.(map[string]interface{})["message"].(string))
-		}
-		return nil
-	}
-	if err := dec.Decode(&msg); err != nil {
+
+	m, err := handleHttpResponse(resp)
+	if err != nil {
 		return err
 	}
-	m := msg.(map[string]interface{})
 	if e, ok := m["result"]; ok {
 		fmt.Println(e.(string))
 	}
