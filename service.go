@@ -24,6 +24,13 @@ const (
 	rawType       = "raw"
 )
 
+type ResourceType int
+
+const (
+	ImageType ResourceType = iota
+	RawType
+)
+
 type Service struct {
 	cloudName  string
 	apiKey     string
@@ -43,7 +50,8 @@ type uploadResponse struct {
 
 // Dial will use the url to connect to the Cloudinary service.
 // The uri parameter must be a valid URI with the cloudinary:// scheme,
-// e.g. cloudinary://api_key:api_secret@cloud_name.
+// e.g.
+//  cloudinary://api_key:api_secret@cloud_name
 func Dial(uri string) (*Service, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -283,8 +291,8 @@ func handleHttpResponse(resp *http.Response) (map[string]interface{}, error) {
 	return m, nil
 }
 
-// Delete deletes an image uploaded to Cloudinary.
-func (s *Service) Delete(publicId string) error {
+// Delete deletes a resource uploaded to Cloudinary.
+func (s *Service) Delete(publicId string, rtype ResourceType) error {
 	// TODO: also delete resource entry from database (if used)
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	data := url.Values{
@@ -299,7 +307,11 @@ func (s *Service) Delete(publicId string) error {
 	io.WriteString(hash, part)
 	data.Set("signature", fmt.Sprintf("%x", hash.Sum(nil)))
 
-	resp, err := http.PostForm(fmt.Sprintf("%s/%s/image/destroy/", baseUploadUrl, s.cloudName), data)
+	rt := imageType
+	if rtype == RawType {
+		rt = rawType
+	}
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/destroy/", baseUploadUrl, s.cloudName, rt), data)
 	if err != nil {
 		return err
 	}

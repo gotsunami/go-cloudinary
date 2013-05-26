@@ -89,7 +89,7 @@ ressource (cloudinary, mongodb) availability.
 		}
 	} else if *deleteId != "" {
 		fmt.Printf("Deleting %s ...\n", *deleteId)
-		if err := service.Delete(*deleteId); err != nil {
+		if err := service.Delete(*deleteId, cloudinary.ImageType); err != nil {
 			fatal(err.Error())
 		}
 	} else if *dropAll {
