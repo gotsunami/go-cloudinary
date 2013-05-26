@@ -62,7 +62,9 @@ ressource (cloudinary, mongodb) availability.
 
 	uploadPath := flag.String("u", "", "path to the file or directory to upload")
 	deleteId := flag.String("d", "", "delete remote file by upload_id")
-	dropAll := flag.Bool("dropall", false, "delete all remote files")
+	dropAll := flag.Bool("dropall", false, "delete all (images and raw) remote files")
+	dropAllImages := flag.Bool("dropallimages", false, "delete all remote images files")
+	dropAllRaws := flag.Bool("dropallraws", false, "delete all remote raw files")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -97,6 +99,15 @@ ressource (cloudinary, mongodb) availability.
 		if err := service.DropAll(os.Stdout); err != nil {
 			fatal(err.Error())
 		}
-
+	} else if *dropAllImages {
+		fmt.Println("Drop all images")
+		if err := service.DropAllImages(os.Stdout); err != nil {
+			fatal(err.Error())
+		}
+	} else if *dropAllRaws {
+		fmt.Println("Drop all raw files")
+		if err := service.DropAllRaws(os.Stdout); err != nil {
+			fatal(err.Error())
+		}
 	}
 }
