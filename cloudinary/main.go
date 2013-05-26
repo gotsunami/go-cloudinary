@@ -60,8 +60,8 @@ ressource (cloudinary, mongodb) availability.
 		os.Exit(2)
 	}
 
-	uploadPath := flag.String("u", "", "path to the file or directory to upload")
-	deleteId := flag.String("d", "", "delete remote file by upload_id")
+	uploadPath := flag.String("upload", "", "path to the file or directory to upload")
+	deleteId := flag.String("drop", "", "delete remote file by upload_id")
 	dropAll := flag.Bool("dropall", false, "delete all (images and raw) remote files")
 	dropAllImages := flag.Bool("dropallimages", false, "delete all remote images files")
 	dropAllRaws := flag.Bool("dropallraws", false, "delete all remote raw files")
