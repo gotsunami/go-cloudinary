@@ -49,9 +49,9 @@ type Service struct {
 	uploadResType ResourceType // Upload resource type
 }
 
-type Image struct {
+// Resource holds information about an image or a raw file.
+type Resource struct {
 	PublicId     string `json:"public_id"`
-	Format       string `json:"format"`
 	Version      int    `json:"version"`
 	ResourceType string `json:"resource_type"` // image or raw
 	Size         int    `json:"bytes"`         // In bytes
@@ -63,9 +63,9 @@ type pagination struct {
 	NextCursor int64 `json: "next_cursor"`
 }
 
-type imageList struct {
+type resourceList struct {
 	pagination
-	Resources []*Image `json: "resources"`
+	Resources []*Resource `json: "resources"`
 }
 
 // Upload response after uploading a file.

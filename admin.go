@@ -6,12 +6,10 @@ package cloudinary
 
 import (
 	"encoding/json"
-	_ "errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	_ "os"
 	"strconv"
 )
 
@@ -86,33 +84,44 @@ func (s *Service) DropAll(w io.Writer) error {
 	return nil
 }
 
-// Images returns a list of all uploaded images. Cloudinary can return a
-// limited set of results. Pagination is supported, so the full set of
-// results is returned.
-func (s *Service) Images() ([]*Image, error) {
+func (s *Service) doGetResources(path string) ([]*Resource, error) {
 	qs := url.Values{
 		"max_results": []string{strconv.FormatInt(maxResults, 10)},
 	}
-	allimgs := make([]*Image, 0)
+	allres := make([]*Resource, 0)
 	for {
-		resp, err := http.Get(fmt.Sprintf("%s%s?%s", s.adminURI, pathListAllImages, qs.Encode()))
+		resp, err := http.Get(fmt.Sprintf("%s%s?%s", s.adminURI, path, qs.Encode()))
 		if err != nil {
 			return nil, err
 		}
 
-		images := new(imageList)
+		rs := new(resourceList)
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(images); err != nil {
+		if err := dec.Decode(rs); err != nil {
 			return nil, err
 		}
-		for _, img := range images.Resources {
-			allimgs = append(allimgs, img)
+		for _, res := range rs.Resources {
+			allres = append(allres, res)
 		}
-		if images.NextCursor > 0 {
-			qs.Set("next_cursor", strconv.FormatInt(images.NextCursor, 10))
+		if rs.NextCursor > 0 {
+			qs.Set("next_cursor", strconv.FormatInt(rs.NextCursor, 10))
 		} else {
 			break
 		}
 	}
-	return allimgs, nil
+	return allres, nil
+}
+
+// Images returns a list of all uploaded images. Cloudinary can return a
+// limited set of results. Pagination is supported, so the full set of
+// results is returned.
+func (s *Service) Images() ([]*Resource, error) {
+	return s.doGetResources(pathListAllImages)
+}
+
+// RawFiles returns a list of all uploaded raw files. Cloudinary can
+// return a limited set of results. Pagination is supported, so the full
+// set of results is returned.
+func (s *Service) RawFiles() ([]*Resource, error) {
+	return s.doGetResources(pathListAllRaws)
 }

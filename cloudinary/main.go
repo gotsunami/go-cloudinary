@@ -52,6 +52,17 @@ func fatal(msg string) {
 	os.Exit(1)
 }
 
+func printResources(res []*cloudinary.Resource, err error) {
+	if err != nil {
+		fatal(err.Error())
+	}
+	fmt.Printf("%-30s %-10s %-5s %s\n", "public_id", "Version", "Type", "Size")
+	fmt.Println(strings.Repeat("-", 70))
+	for _, r := range res {
+		fmt.Printf("%-30s %d %s %10d\n", r.PublicId, r.Version, r.ResourceType, r.Size)
+	}
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] settings.conf \n", os.Args[0]))
@@ -73,7 +84,7 @@ ressource (cloudinary, mongodb) availability.
 	dropAllImages := flag.Bool("dropallimages", false, "delete all remote images files")
 	dropAllRaws := flag.Bool("dropallraws", false, "delete all remote raw files")
 	listImages := flag.Bool("listimages", false, "List all remote images")
-	//	listRaws := flag.Bool("listraws", false, "List all remote raw files")
+	listRaws := flag.Bool("listraws", false, "List all remote raw files")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -129,14 +140,8 @@ ressource (cloudinary, mongodb) availability.
 			fatal(err.Error())
 		}
 	} else if *listImages {
-		images, err := service.Images()
-		if err != nil {
-			fatal(err.Error())
-		}
-		fmt.Printf("%-30s %s %-10s %-5s %s\n", "public_id", "Format", "Version", "Type", "Size")
-		fmt.Println(strings.Repeat("-", 70))
-		for _, img := range images {
-			fmt.Printf("%-30s %-6s %d %s %10d\n", img.PublicId, img.Format, img.Version, img.ResourceType, img.Size)
-		}
+		printResources(service.Images())
+	} else if *listRaws {
+		printResources(service.RawFiles())
 	}
 }
