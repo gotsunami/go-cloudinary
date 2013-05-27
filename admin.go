@@ -116,9 +116,10 @@ func (s *Service) doGetResources(rtype ResourceType) ([]*Resource, error) {
 	return allres, nil
 }
 
-// Images returns a list of all uploaded images. Cloudinary can return a
-// limited set of results. Pagination is supported, so the full set of
-// results is returned.
+// Resources returns a list of all uploaded resources. They can be
+// images or raw files, depending on the resource type passed in rtype.
+// Cloudinary can return a limited set of results. Pagination is supported,
+// so the full set of results is returned.
 func (s *Service) Resources(rtype ResourceType) ([]*Resource, error) {
 	return s.doGetResources(rtype)
 }
