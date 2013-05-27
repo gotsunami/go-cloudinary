@@ -85,6 +85,8 @@ ressource (cloudinary, mongodb) availability.
 	dropAllRaws := flag.Bool("dropallraws", false, "delete all remote raw files")
 	listImages := flag.Bool("listimages", false, "List all remote images")
 	listRaws := flag.Bool("listraws", false, "List all remote raw files")
+	urlImg := flag.String("urlimg", "", "URL to the uploaded image")
+	urlRaw := flag.String("urlraw", "", "URL to the uploaded raw file")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -143,5 +145,9 @@ ressource (cloudinary, mongodb) availability.
 		printResources(service.Resources(cloudinary.ImageType))
 	} else if *listRaws {
 		printResources(service.Resources(cloudinary.RawType))
+	} else if *urlImg != "" {
+		fmt.Println(service.Url(*urlImg, cloudinary.ImageType))
+	} else if *urlRaw != "" {
+		fmt.Println(service.Url(*urlRaw, cloudinary.RawType))
 	}
 }

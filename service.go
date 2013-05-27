@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	baseUploadUrl = "http://api.cloudinary.com/v1_1"
-	imageType     = "image"
-	rawType       = "raw"
+	baseUploadUrl   = "http://api.cloudinary.com/v1_1"
+	baseResourceUrl = "http://res.cloudinary.com"
+	imageType       = "image"
+	rawType         = "raw"
 )
 
 type ResourceType int
@@ -297,8 +298,12 @@ func (s *Service) Upload(path string, randomPublicId bool, rtype ResourceType) e
 // Url returns the complete access path in the cloud to the
 // resource designed by publicId or the empty string if
 // no match.
-func (s *Service) Url(publicId string) string {
-	return ""
+func (s *Service) Url(publicId string, rtype ResourceType) string {
+	path := imageType
+	if rtype == RawType {
+		path = rawType
+	}
+	return fmt.Sprintf("%s/%s/%s/upload/%s", baseResourceUrl, s.cloudName, path, publicId)
 }
 
 func handleHttpResponse(resp *http.Response) (map[string]interface{}, error) {
