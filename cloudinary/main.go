@@ -56,6 +56,10 @@ func printResources(res []*cloudinary.Resource, err error) {
 	if err != nil {
 		fatal(err.Error())
 	}
+	if len(res) == 0 {
+		fmt.Println("No resource found.")
+		return
+	}
 	fmt.Printf("%-30s %-10s %-5s %s\n", "public_id", "Version", "Type", "Size")
 	fmt.Println(strings.Repeat("-", 70))
 	for _, r := range res {
