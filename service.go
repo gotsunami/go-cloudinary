@@ -48,6 +48,7 @@ type Service struct {
 	adminURI      *url.URL     // To use the admin API
 	mongoDbURI    *url.URL     // Can be nil: upload sync disabled
 	uploadResType ResourceType // Upload resource type
+	basePathDir   string       // Base path directory
 }
 
 // Resource holds information about an image or a raw file.
@@ -151,13 +152,22 @@ func (s *Service) DefaultUploadURI() *url.URL {
 // cleanAssetName returns an asset name from the parent dirname and
 // the file name without extension. The path /tmp/css/default.css will
 // return css/default.
-func cleanAssetName(path string) string {
-	idx := strings.LastIndex(path, string(os.PathSeparator))
-	if idx != -1 {
-		idx = strings.LastIndex(path[:idx], string(os.PathSeparator))
+func cleanAssetName(path, basePath string) string {
+	var name string
+	if basePath == "" {
+		idx := strings.LastIndex(path, string(os.PathSeparator))
+		if idx != -1 {
+			idx = strings.LastIndex(path[:idx], string(os.PathSeparator))
+		}
+		name = path[idx+1:]
+	} else {
+		// Directory
+		name = strings.Replace(path, basePath, "", 1)
+		if name[0] == os.PathSeparator {
+			name = name[1:]
+		}
 	}
-	publicId := path[idx+1:]
-	return publicId[:len(publicId)-len(filepath.Ext(publicId))]
+	return name[:len(name)-len(filepath.Ext(name))]
 }
 
 func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
@@ -178,7 +188,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	// Write public ID
 	var publicId string
 	if !randomPublicId {
-		publicId = cleanAssetName(path)
+		publicId = cleanAssetName(path, s.basePathDir)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
 			return err
@@ -284,10 +294,12 @@ func (s *Service) Upload(path string, randomPublicId bool, rtype ResourceType) e
 
 	s.uploadResType = rtype
 	if info.IsDir() {
+		s.basePathDir = path
 		if err := filepath.Walk(path, s.walkIt); err != nil {
 			return err
 		}
 	} else {
+		s.basePathDir = ""
 		if err := s.uploadFile(path, randomPublicId); err != nil {
 			return err
 		}
