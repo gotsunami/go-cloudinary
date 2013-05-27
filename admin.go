@@ -5,10 +5,13 @@
 package cloudinary
 
 import (
+	"encoding/json"
+	_ "errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	_ "os"
 	"strconv"
 )
 
@@ -22,7 +25,7 @@ const (
 )
 
 const (
-	maxResults = 10
+	maxResults = 100
 )
 
 func (s *Service) dropAllResources(rtype ResourceType, w io.Writer) error {
@@ -81,4 +84,35 @@ func (s *Service) DropAll(w io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+// Images returns a list of all uploaded images. Cloudinary can return a
+// limited set of results. Pagination is supported, so the full set of
+// results is returned.
+func (s *Service) Images() ([]*Image, error) {
+	qs := url.Values{
+		"max_results": []string{strconv.FormatInt(maxResults, 10)},
+	}
+	allimgs := make([]*Image, 0)
+	for {
+		resp, err := http.Get(fmt.Sprintf("%s%s?%s", s.adminURI, pathListAllImages, qs.Encode()))
+		if err != nil {
+			return nil, err
+		}
+
+		images := new(imageList)
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(images); err != nil {
+			return nil, err
+		}
+		for _, img := range images.Resources {
+			allimgs = append(allimgs, img)
+		}
+		if images.NextCursor > 0 {
+			qs.Set("next_cursor", strconv.FormatInt(images.NextCursor, 10))
+		} else {
+			break
+		}
+	}
+	return allimgs, nil
 }
