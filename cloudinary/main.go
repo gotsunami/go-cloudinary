@@ -47,14 +47,14 @@ func LoadConfig(path string) (*Config, error) {
 	return settings, nil
 }
 
-func fatal(msg string) {
+func fail(msg string) {
 	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
 	os.Exit(1)
 }
 
 func printResources(res []*cloudinary.Resource, err error) {
 	if err != nil {
-		fatal(err.Error())
+		fail(err.Error())
 	}
 	if len(res) == 0 {
 		fmt.Println("No resource found.")
@@ -71,26 +71,27 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] settings.conf \n", os.Args[0]))
 		fmt.Fprintf(os.Stderr, `
-Without any option supplied, it will read the config file and check
-ressource (cloudinary, mongodb) availability.
+The config file is a plain text file with a [cloudinary] section, e.g
 
+[cloudinary]
+uri=cloudinary://api_key:api_secret@cloud_name
 `)
-		fmt.Fprintf(os.Stderr, "Options:\n")
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
 
-	uploadAsRaw := flag.String("uploadasraw", "", "path to the file or directory to upload as raw files")
-	uploadAsImg := flag.String("uploadasimg", "", "path to the file or directory to upload as image files")
-	dropImg := flag.String("dropimg", "", "delete remote image by public_id")
-	dropRaw := flag.String("dropraw", "", "delete remote raw file by public_id")
-	dropAll := flag.Bool("dropall", false, "delete all (images and raw) remote files")
-	dropAllImages := flag.Bool("dropallimages", false, "delete all remote images files")
-	dropAllRaws := flag.Bool("dropallraws", false, "delete all remote raw files")
-	listImages := flag.Bool("listimages", false, "List all remote images")
-	listRaws := flag.Bool("listraws", false, "List all remote raw files")
-	urlImg := flag.String("urlimg", "", "URL to the uploaded image")
-	urlRaw := flag.String("urlraw", "", "URL to the uploaded raw file")
+	uploadAsRaw := flag.String("upr", "", "path to the file or directory to upload as raw files")
+	uploadAsImg := flag.String("upi", "", "path to the file or directory to upload as image files")
+	dropImg := flag.String("rmi", "", "delete remote image by public_id")
+	dropRaw := flag.String("rmr", "", "delete remote raw file by public_id")
+	dropAll := flag.Bool("rmall", false, "delete all (images and raw) remote files")
+	dropAllImages := flag.Bool("rmalli", false, "delete all remote images files")
+	dropAllRaws := flag.Bool("rmallr", false, "delete all remote raw files")
+	listImages := flag.Bool("lsi", false, "List all remote images")
+	listRaws := flag.Bool("lsr", false, "List all remote raw files")
+	urlImg := flag.String("urli", "", "URL to the uploaded image")
+	urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -98,6 +99,7 @@ ressource (cloudinary, mongodb) availability.
 		flag.Usage()
 	}
 
+	var err error
 	settings, err := LoadConfig(flag.Arg(0))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", flag.Arg(0), err.Error())
@@ -106,45 +108,30 @@ ressource (cloudinary, mongodb) availability.
 
 	service, err = cloudinary.Dial(settings.CloudinaryURI.String())
 	if err != nil {
-		fatal(err.Error())
+		fail(err.Error())
 	}
 
-	// Upload file
 	if *uploadAsRaw != "" {
 		fmt.Println("Uploading as raw data ...")
-		if err := service.Upload(*uploadAsRaw, false, cloudinary.RawType); err != nil {
-			fatal(err.Error())
-		}
+		service.Upload(*uploadAsRaw, false, cloudinary.RawType)
 	} else if *uploadAsImg != "" {
 		fmt.Println("Uploading as images ...")
-		if err := service.Upload(*uploadAsImg, false, cloudinary.ImageType); err != nil {
-			fatal(err.Error())
-		}
+		service.Upload(*uploadAsImg, false, cloudinary.ImageType)
 	} else if *dropImg != "" {
 		fmt.Printf("Deleting image %s ...\n", *dropImg)
-		if err := service.Delete(*dropImg, cloudinary.ImageType); err != nil {
-			fatal(err.Error())
-		}
+		service.Delete(*dropImg, cloudinary.ImageType)
 	} else if *dropRaw != "" {
 		fmt.Printf("Deleting raw file %s ...\n", *dropRaw)
-		if err := service.Delete(*dropRaw, cloudinary.RawType); err != nil {
-			fatal(err.Error())
-		}
+		service.Delete(*dropRaw, cloudinary.RawType)
 	} else if *dropAll {
 		fmt.Println("Drop all")
-		if err := service.DropAll(os.Stdout); err != nil {
-			fatal(err.Error())
-		}
+		service.DropAll(os.Stdout)
 	} else if *dropAllImages {
 		fmt.Println("Drop all images")
-		if err := service.DropAllImages(os.Stdout); err != nil {
-			fatal(err.Error())
-		}
+		service.DropAllImages(os.Stdout)
 	} else if *dropAllRaws {
 		fmt.Println("Drop all raw files")
-		if err := service.DropAllRaws(os.Stdout); err != nil {
-			fatal(err.Error())
-		}
+		service.DropAllRaws(os.Stdout)
 	} else if *listImages {
 		printResources(service.Resources(cloudinary.ImageType))
 	} else if *listRaws {
@@ -153,5 +140,9 @@ ressource (cloudinary, mongodb) availability.
 		fmt.Println(service.Url(*urlImg, cloudinary.ImageType))
 	} else if *urlRaw != "" {
 		fmt.Println(service.Url(*urlRaw, cloudinary.RawType))
+	}
+
+	if err != nil {
+		fail(err.Error())
 	}
 }
