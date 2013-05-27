@@ -84,9 +84,13 @@ func (s *Service) DropAll(w io.Writer) error {
 	return nil
 }
 
-func (s *Service) doGetResources(path string) ([]*Resource, error) {
+func (s *Service) doGetResources(rtype ResourceType) ([]*Resource, error) {
 	qs := url.Values{
 		"max_results": []string{strconv.FormatInt(maxResults, 10)},
+	}
+	path := pathListAllImages
+	if rtype == RawType {
+		path = pathListAllRaws
 	}
 	allres := make([]*Resource, 0)
 	for {
@@ -115,13 +119,6 @@ func (s *Service) doGetResources(path string) ([]*Resource, error) {
 // Images returns a list of all uploaded images. Cloudinary can return a
 // limited set of results. Pagination is supported, so the full set of
 // results is returned.
-func (s *Service) Images() ([]*Resource, error) {
-	return s.doGetResources(pathListAllImages)
-}
-
-// RawFiles returns a list of all uploaded raw files. Cloudinary can
-// return a limited set of results. Pagination is supported, so the full
-// set of results is returned.
-func (s *Service) RawFiles() ([]*Resource, error) {
-	return s.doGetResources(pathListAllRaws)
+func (s *Service) Resources(rtype ResourceType) ([]*Resource, error) {
+	return s.doGetResources(rtype)
 }

@@ -140,8 +140,8 @@ ressource (cloudinary, mongodb) availability.
 			fatal(err.Error())
 		}
 	} else if *listImages {
-		printResources(service.Images())
+		printResources(service.Resources(cloudinary.ImageType))
 	} else if *listRaws {
-		printResources(service.RawFiles())
+		printResources(service.Resources(cloudinary.RawType))
 	}
 }
