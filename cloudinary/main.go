@@ -66,7 +66,8 @@ ressource (cloudinary, mongodb) availability.
 
 	uploadAsRaw := flag.String("uploadasraw", "", "path to the file or directory to upload as raw files")
 	uploadAsImg := flag.String("uploadasimg", "", "path to the file or directory to upload as image files")
-	deleteId := flag.String("drop", "", "delete remote file by upload_id")
+	dropImg := flag.String("dropimg", "", "delete remote image by public_id")
+	dropRaw := flag.String("dropraw", "", "delete remote raw file by public_id")
 	dropAll := flag.Bool("dropall", false, "delete all (images and raw) remote files")
 	dropAllImages := flag.Bool("dropallimages", false, "delete all remote images files")
 	dropAllRaws := flag.Bool("dropallraws", false, "delete all remote raw files")
@@ -99,9 +100,14 @@ ressource (cloudinary, mongodb) availability.
 		if err := service.Upload(*uploadAsImg, false, cloudinary.ImageType); err != nil {
 			fatal(err.Error())
 		}
-	} else if *deleteId != "" {
-		fmt.Printf("Deleting %s ...\n", *deleteId)
-		if err := service.Delete(*deleteId, cloudinary.ImageType); err != nil {
+	} else if *dropImg != "" {
+		fmt.Printf("Deleting image %s ...\n", *dropImg)
+		if err := service.Delete(*dropImg, cloudinary.ImageType); err != nil {
+			fatal(err.Error())
+		}
+	} else if *dropRaw != "" {
+		fmt.Printf("Deleting raw file %s ...\n", *dropRaw)
+		if err := service.Delete(*dropRaw, cloudinary.RawType); err != nil {
 			fatal(err.Error())
 		}
 	} else if *dropAll {
