@@ -64,7 +64,8 @@ ressource (cloudinary, mongodb) availability.
 		os.Exit(2)
 	}
 
-	uploadPath := flag.String("upload", "", "path to the file or directory to upload")
+	uploadAsRaw := flag.String("uploadasraw", "", "path to the file or directory to upload as raw files")
+	uploadAsImg := flag.String("uploadasimg", "", "path to the file or directory to upload as image files")
 	deleteId := flag.String("drop", "", "delete remote file by upload_id")
 	dropAll := flag.Bool("dropall", false, "delete all (images and raw) remote files")
 	dropAllImages := flag.Bool("dropallimages", false, "delete all remote images files")
@@ -88,9 +89,14 @@ ressource (cloudinary, mongodb) availability.
 	}
 
 	// Upload file
-	if *uploadPath != "" {
-		fmt.Println("Uploading ...")
-		if err := service.Upload(*uploadPath, false); err != nil {
+	if *uploadAsRaw != "" {
+		fmt.Println("Uploading as raw data ...")
+		if err := service.Upload(*uploadAsRaw, false, cloudinary.RawType); err != nil {
+			fatal(err.Error())
+		}
+	} else if *uploadAsImg != "" {
+		fmt.Println("Uploading as images ...")
+		if err := service.Upload(*uploadAsImg, false, cloudinary.ImageType); err != nil {
 			fatal(err.Error())
 		}
 	} else if *deleteId != "" {

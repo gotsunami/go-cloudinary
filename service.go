@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Package cloudinary provides support for managing static assets
+// on the Cloudinary service.
+//
+// The Cloudinary service allows image and raw files management in
+// the cloud.
 package cloudinary
 
 import (
@@ -11,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -36,12 +40,13 @@ const (
 )
 
 type Service struct {
-	cloudName  string
-	apiKey     string
-	apiSecret  string
-	uploadURI  *url.URL // To upload resources
-	adminURI   *url.URL // To use the admin API
-	mongoDbURI *url.URL // Can be nil: upload sync disabled
+	cloudName     string
+	apiKey        string
+	apiSecret     string
+	uploadURI     *url.URL     // To upload resources
+	adminURI      *url.URL     // To use the admin API
+	mongoDbURI    *url.URL     // Can be nil: upload sync disabled
+	uploadResType ResourceType // Upload resource type
 }
 
 // Upload response after uploading a file.
@@ -69,9 +74,10 @@ func Dial(uri string) (*Service, error) {
 		return nil, errors.New("No API secret provided in URI.")
 	}
 	s := &Service{
-		cloudName: u.Host,
-		apiKey:    u.User.Username(),
-		apiSecret: secret,
+		cloudName:     u.Host,
+		apiKey:        u.User.Username(),
+		apiSecret:     secret,
+		uploadResType: ImageType,
 	}
 	// Default upload URI to the service. Can change at runtime in the
 	// Upload() function for raw file uploading.
@@ -209,9 +215,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	w.Close()
 
 	upURI := s.uploadURI.String()
-	ftype := mime.TypeByExtension(filepath.Ext(path))
-	// Different URL for raw data upload
-	if !strings.HasPrefix(ftype, imageType) {
+	if s.uploadResType == RawType {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
 	req, err := http.NewRequest("POST", upURI, buf)
@@ -244,6 +248,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 // Upload a file or a set of files in the cloud. Set ramdomPublicId to true
 // to let the service generate a unique random public id. If set to false,
 // the resource's public id is computed using the absolute path to the file.
+// Set rtype to the target resource type, e.g. image or raw file.
 //
 // For example, a raw file /tmp/css/default.css will be stored with a public
 // name of css/default.css (raw file keeps its extension), but an image file
@@ -251,11 +256,13 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 //
 // If the source path is a directory, all files are recursively uploaded to
 // the cloud service.
-func (s *Service) Upload(path string, randomPublicId bool) error {
+func (s *Service) Upload(path string, randomPublicId bool, rtype ResourceType) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
+
+	s.uploadResType = rtype
 	if info.IsDir() {
 		if err := filepath.Walk(path, s.walkIt); err != nil {
 			return err
