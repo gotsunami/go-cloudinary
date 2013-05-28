@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -174,14 +175,14 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	if err := s.uploadFile(path, false); err != nil {
+	if _, err := s.uploadFile(path, nil, false); err != nil {
 		return err
 	}
 	return nil
 }
 
 // Upload file to the service. See Upload().
-func (s *Service) uploadFile(path string, randomPublicId bool) error {
+func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (string, error) {
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 
@@ -191,7 +192,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 		publicId = cleanAssetName(path, s.basePathDir)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
-			return err
+			return publicId, err
 		}
 		pi.Write([]byte(publicId))
 	}
@@ -199,7 +200,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	// Write API key
 	ak, err := w.CreateFormField("api_key")
 	if err != nil {
-		return err
+		return publicId, err
 	}
 	ak.Write([]byte(s.apiKey))
 
@@ -207,7 +208,7 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	ts, err := w.CreateFormField("timestamp")
 	if err != nil {
-		return err
+		return publicId, err
 	}
 	ts.Write([]byte(timestamp))
 
@@ -222,24 +223,32 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 
 	si, err := w.CreateFormField("signature")
 	if err != nil {
-		return err
+		return publicId, err
 	}
 	si.Write([]byte(signature))
 
 	// Write file field
 	fw, err := w.CreateFormFile("file", path)
 	if err != nil {
-		return err
+		return publicId, err
 	}
-	fd, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer fd.Close()
+	if (data != nil) { // file descriptor given
+		tmp, err := ioutil.ReadAll(data)
+		if err != nil {
+			return publicId, err
+		}
+		fw.Write(tmp)
+	} else { // no file descriptor, try opening the file
+		fd, err := os.Open(path)
+		if err != nil {
+			return publicId, err
+		}
+		defer fd.Close()
 
-	_, err = io.Copy(fw, fd)
-	if err != nil {
-		return err
+		_, err = io.Copy(fw, fd)
+		if err != nil {
+			return publicId, err
+		}
 	}
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
@@ -250,13 +259,13 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 	}
 	req, err := http.NewRequest("POST", upURI, buf)
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if resp.StatusCode == http.StatusOK {
@@ -265,14 +274,13 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 		dec := json.NewDecoder(resp.Body)
 		upInfo := new(uploadResponse)
 		if err := dec.Decode(upInfo); err != nil {
-			return err
+			return publicId, err
 		}
 		fmt.Println(upInfo.PublicId)
+		return upInfo.PublicId, nil
 	} else {
-		return errors.New("Request error: " + resp.Status)
+		return publicId, errors.New("Request error: " + resp.Status)
 	}
-
-	return nil
 }
 
 // Upload a file or a set of files in the cloud. Set ramdomPublicId to true
@@ -286,25 +294,27 @@ func (s *Service) uploadFile(path string, randomPublicId bool) error {
 //
 // If the source path is a directory, all files are recursively uploaded to
 // the cloud service.
-func (s *Service) Upload(path string, randomPublicId bool, rtype ResourceType) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
+func (s *Service) Upload(path string, data io.Reader, randomPublicId bool, rtype ResourceType) (string, error) {
 	s.uploadResType = rtype
-	if info.IsDir() {
-		s.basePathDir = path
-		if err := filepath.Walk(path, s.walkIt); err != nil {
-			return err
+	s.basePathDir = ""
+	if data == nil {
+		info, err := os.Stat(path)
+		if err != nil {
+			return path, err
+		}
+		
+		if info.IsDir() {
+			s.basePathDir = path
+			if err := filepath.Walk(path, s.walkIt); err != nil {
+				return path, err
+			}
+		} else {
+			return s.uploadFile(path, nil, randomPublicId)
 		}
 	} else {
-		s.basePathDir = ""
-		if err := s.uploadFile(path, randomPublicId); err != nil {
-			return err
-		}
+		return s.uploadFile(path, data, randomPublicId)
 	}
-	return nil
+	return path, nil
 }
 
 // Url returns the complete access path in the cloud to the
