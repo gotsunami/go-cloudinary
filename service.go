@@ -282,17 +282,27 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 	}
 }
 
-// Upload a file or a set of files in the cloud. Set ramdomPublicId to true
-// to let the service generate a unique random public id. If set to false,
-// the resource's public id is computed using the absolute path to the file.
+// Upload a file or a set of files to the cloud. The path parameter is
+// a file location or a directory. If the source path is a directory,
+// all files are recursively uploaded to Cloudinary.
+//
+// In order to upload content, path is always required (used to get the
+// directory name or resource name if randomPublicId is false) but data
+// can be nil. If data is non-nil the content of the file will be read
+// from it. If data is nil, the function will try to open filename(s)
+// specified by path.
+//
+// If ramdomPublicId is true, the service generates a unique random public
+// id. Otherwise, the resource's public id is computed using the absolute
+// path of the file.
+//
 // Set rtype to the target resource type, e.g. image or raw file.
 //
 // For example, a raw file /tmp/css/default.css will be stored with a public
 // name of css/default.css (raw file keeps its extension), but an image file
 // /tmp/images/logo.png will be stored as images/logo.
 //
-// If the source path is a directory, all files are recursively uploaded to
-// the cloud service.
+// The function returns the public identifier of the resource.
 func (s *Service) Upload(path string, data io.Reader, randomPublicId bool, rtype ResourceType) (string, error) {
 	s.uploadResType = rtype
 	s.basePathDir = ""
