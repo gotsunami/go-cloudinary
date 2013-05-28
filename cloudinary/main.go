@@ -113,10 +113,10 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	if *uploadAsRaw != "" {
 		fmt.Println("Uploading as raw data ...")
-		service.Upload(*uploadAsRaw, false, cloudinary.RawType)
+		service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType)
 	} else if *uploadAsImg != "" {
 		fmt.Println("Uploading as images ...")
-		service.Upload(*uploadAsImg, false, cloudinary.ImageType)
+		service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType)
 	} else if *dropImg != "" {
 		fmt.Printf("Deleting image %s ...\n", *dropImg)
 		service.Delete(*dropImg, cloudinary.ImageType)
