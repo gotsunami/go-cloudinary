@@ -232,7 +232,7 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 	if err != nil {
 		return publicId, err
 	}
-	if (data != nil) { // file descriptor given
+	if data != nil { // file descriptor given
 		tmp, err := ioutil.ReadAll(data)
 		if err != nil {
 			return publicId, err
@@ -301,7 +301,7 @@ func (s *Service) Upload(path string, data io.Reader, randomPublicId bool, rtype
 		if err != nil {
 			return path, err
 		}
-		
+
 		if info.IsDir() {
 			s.basePathDir = path
 			if err := filepath.Walk(path, s.walkIt); err != nil {
