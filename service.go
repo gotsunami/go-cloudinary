@@ -276,7 +276,6 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		if err := dec.Decode(upInfo); err != nil {
 			return publicId, err
 		}
-		fmt.Println(upInfo.PublicId)
 		return upInfo.PublicId, nil
 	} else {
 		return publicId, errors.New("Request error: " + resp.Status)
