@@ -1,7 +1,7 @@
 go-cloudinary
 =============
 
-A Go library and CLI tool to upload static assets to the `Cloudinary`_ service.
+A Go client library and CLI tool to upload static assets to the `Cloudinary`_ service.
 
 .. _Cloudinary: http://www.cloudinary.com
 
