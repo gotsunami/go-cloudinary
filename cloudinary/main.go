@@ -22,6 +22,25 @@ type Config struct {
 
 var service *cloudinary.Service
 
+// Parses all structure fields values, looks for any
+// variable defined as ${VARNAME} and substitute it by
+// calling os.Getenv().
+//
+// The reflect package is not used here since we cannot
+// set a private field (not exported) within a struct using
+// reflection.
+func (c *Config) handleEnvVars() error {
+	// [cloudinary]
+	if c.CloudinaryURI != nil {
+		curi, err := handleQuery(c.CloudinaryURI)
+		if err != nil {
+			return err
+		}
+		c.CloudinaryURI = curi
+	}
+	return nil
+}
+
 // LoadConfig parses a config file and sets global settings
 // variables to be used at runtime. Note that returning an error
 // will cause the application to exit with code error 1.
@@ -44,6 +63,11 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, errors.New(fmt.Sprint("cloudinary URI: ", err.Error()))
 	}
 	settings.CloudinaryURI = cURI
+
+	// Looks for env variables, perform substitutions if needed
+	if err := settings.handleEnvVars(); err != nil {
+		return nil, err
+	}
 	return settings, nil
 }
 
