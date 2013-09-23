@@ -116,6 +116,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	listRaws := flag.Bool("lsr", false, "List all remote raw files")
 	urlImg := flag.String("urli", "", "URL to the uploaded image")
 	urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
+	verbose := flag.Bool("v", false, "verbose output")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -131,6 +132,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	}
 
 	service, err = cloudinary.Dial(settings.CloudinaryURI.String())
+	service.Verbose(*verbose)
 	if err != nil {
 		fail(err.Error())
 	}

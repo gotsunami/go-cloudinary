@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -50,6 +51,7 @@ type Service struct {
 	mongoDbURI    *url.URL     // Can be nil: upload sync disabled
 	uploadResType ResourceType // Upload resource type
 	basePathDir   string       // Base path directory
+	verbose       bool
 }
 
 // Resource holds information about an image or a raw file.
@@ -100,6 +102,7 @@ func Dial(uri string) (*Service, error) {
 		apiKey:        u.User.Username(),
 		apiSecret:     secret,
 		uploadResType: ImageType,
+		verbose:       false,
 	}
 	// Default upload URI to the service. Can change at runtime in the
 	// Upload() function for raw file uploading.
@@ -117,6 +120,11 @@ func Dial(uri string) (*Service, error) {
 	adm.User = url.UserPassword(s.apiKey, s.apiSecret)
 	s.adminURI = adm
 	return s, nil
+}
+
+// Verbose activate/desactivate debugging information on standard output.
+func (s *Service) Verbose(v bool) {
+	s.verbose = v
 }
 
 // UseDatabase connects to a mongoDB database and stores upload JSON
@@ -249,6 +257,9 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		if err != nil {
 			return publicId, err
 		}
+		if s.verbose {
+			log.Printf("Uploading %s\n", path)
+		}
 	}
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
@@ -268,6 +279,11 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		return "", err
 	}
 
+	a, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return publicId, err
+	}
+	fmt.Println(string(a))
 	if resp.StatusCode == http.StatusOK {
 		// Body is JSON data and looks like:
 		// {"public_id":"Downloads/file","version":1369431906,"format":"png","resource_type":"image"}
