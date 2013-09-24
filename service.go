@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"labix.org/v2/mgo"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -48,10 +49,12 @@ type Service struct {
 	apiSecret     string
 	uploadURI     *url.URL     // To upload resources
 	adminURI      *url.URL     // To use the admin API
-	mongoDbURI    *url.URL     // Can be nil: upload sync disabled
 	uploadResType ResourceType // Upload resource type
 	basePathDir   string       // Base path directory
 	verbose       bool
+	simulate      bool     // Dry run (NOP)
+	mongoDbURI    *url.URL // Can be nil: checksum checks are disabled
+	session       *mgo.Session
 }
 
 // Resource holds information about an image or a raw file.
@@ -75,10 +78,12 @@ type resourceList struct {
 
 // Upload response after uploading a file.
 type uploadResponse struct {
+	Id           string `bson:"_id"`
 	PublicId     string `json:"public_id"`
 	Version      uint   `json:"version"`
 	Format       string `json:"format"`
 	ResourceType string `json:"resource_type"` // "image" or "raw"
+	Size         int    `json:"bytes"`         // In bytes
 }
 
 // Dial will use the url to connect to the Cloudinary service.
@@ -102,6 +107,7 @@ func Dial(uri string) (*Service, error) {
 		apiKey:        u.User.Username(),
 		apiSecret:     secret,
 		uploadResType: ImageType,
+		simulate:      false,
 		verbose:       false,
 	}
 	// Default upload URI to the service. Can change at runtime in the
@@ -127,6 +133,11 @@ func (s *Service) Verbose(v bool) {
 	s.verbose = v
 }
 
+// Simulate show what would occur but actualy don't do anything. This is a dry-run.
+func (s *Service) Simulate(v bool) {
+	s.simulate = v
+}
+
 // UseDatabase connects to a mongoDB database and stores upload JSON
 // responses, along with a source file checksum to prevent uploading
 // the same file twice. Stored information is used by Url() to build
@@ -140,6 +151,18 @@ func (s *Service) UseDatabase(mongoDbURI string) error {
 		return errors.New("Missing mongodb:// scheme in URI")
 	}
 	s.mongoDbURI = u
+
+	if s.verbose {
+		log.Printf("Connecting to database %s@%s ... ", u.Path[1:], u.Host)
+	}
+	session, err := mgo.Dial(mongoDbURI)
+	if err != nil {
+		return err
+	}
+	if s.verbose {
+		log.Println("Connected")
+	}
+	s.session = session
 	return nil
 }
 
@@ -189,7 +212,9 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	return nil
 }
 
-// Upload file to the service. See Upload().
+// Upload file to the service. When using a mongoDB database for storing
+// file information (such as checksums), the database is updated after
+// any successful upload.
 func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (string, error) {
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
@@ -279,11 +304,6 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		return "", err
 	}
 
-	a, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return publicId, err
-	}
-	fmt.Println(string(a))
 	if resp.StatusCode == http.StatusOK {
 		// Body is JSON data and looks like:
 		// {"public_id":"Downloads/file","version":1369431906,"format":"png","resource_type":"image"}
@@ -291,6 +311,14 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		upInfo := new(uploadResponse)
 		if err := dec.Decode(upInfo); err != nil {
 			return publicId, err
+		}
+		upInfo.Id = upInfo.PublicId
+		if s.session != nil {
+			// Store information in DB
+			c := s.session.DB("cloudinary").C("upload")
+			if err := c.Insert(upInfo); err != nil {
+				return publicId, err
+			}
 		}
 		return upInfo.PublicId, nil
 	} else {

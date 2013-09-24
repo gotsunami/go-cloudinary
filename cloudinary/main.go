@@ -64,6 +64,16 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	settings.CloudinaryURI = cURI
 
+	// mongodb section is optional
+	uri, _ = c.String("mongodb", "uri")
+	if uri != "" {
+		var mURI *url.URL
+		if mURI, err = url.Parse(uri); err != nil {
+			return nil, errors.New(fmt.Sprint("mongoDB URI: ", err.Error()))
+		}
+		settings.MongoURI = mURI
+	}
+
 	// Looks for env variables, perform substitutions if needed
 	if err := settings.handleEnvVars(); err != nil {
 		return nil, err
@@ -117,6 +127,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	urlImg := flag.String("urli", "", "URL to the uploaded image")
 	urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
 	verbose := flag.Bool("v", false, "verbose output")
+	simulate := flag.Bool("s", false, "simulate (dry run)")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -133,16 +144,32 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	service, err = cloudinary.Dial(settings.CloudinaryURI.String())
 	service.Verbose(*verbose)
+	service.Simulate(*simulate)
+	if settings.MongoURI != nil {
+		if err := service.UseDatabase(settings.MongoURI.String()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error connecting to mongoDB: %s\n", err.Error())
+			os.Exit(1)
+		}
+	}
+
 	if err != nil {
 		fail(err.Error())
 	}
 
 	if *uploadAsRaw != "" {
 		fmt.Println("Uploading as raw data ...")
-		service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType)
+		_, err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+			os.Exit(1)
+		}
 	} else if *uploadAsImg != "" {
 		fmt.Println("Uploading as images ...")
-		service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType)
+		_, err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+			os.Exit(1)
+		}
 	} else if *dropImg != "" {
 		fmt.Printf("Deleting image %s ...\n", *dropImg)
 		service.Delete(*dropImg, cloudinary.ImageType)
