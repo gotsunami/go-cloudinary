@@ -43,12 +43,11 @@ func (s *Service) dropAllResources(rtype ResourceType, w io.Writer) error {
 		for _, v := range m["resources"].([]interface{}) {
 			publicId := v.(map[string]interface{})["public_id"].(string)
 			if w != nil {
-				fmt.Fprintf(w, "Deleting %s ...\n", publicId)
+				fmt.Fprintf(w, "Deleting %s ... ", publicId)
 			}
 			if err := s.Delete(publicId, rtype); err != nil {
 				return err
 			}
-			// TODO: also delete resource entry from database (if used)
 		}
 		if e, ok := m["next_cursor"]; ok {
 			qs.Set("next_cursor", e.(string))

@@ -226,25 +226,41 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // file information (such as checksums), the database is updated after
 // any successful upload.
 func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool) (string, error) {
+	// Do not upload empty files
+	fi, err := os.Stat(fullPath)
+	if err != nil {
+		return "", err
+	}
+	if fi.Size() == 0 {
+		return "", nil
+		if s.verbose {
+			fmt.Println("Not uploading empty file: ", fullPath)
+		}
+	}
 	// First check we have no match before sending an HTTP query
 	changedLocally := false
 	if s.dbSession != nil {
 		fname := path.Base(fullPath)
-		info := new(uploadResponse)
-		err := s.col.Find(bson.M{"filename": fname}).One(info)
+		matches := make([]*uploadResponse, 0)
+		err := s.col.Find(bson.M{"filename": fname}).All(&matches)
 		if err == nil {
-			if strings.Contains(fullPath, info.PublicId) {
-				// Current file checksum
-				chk, err := fileChecksum(fullPath)
-				if err != nil {
-					return "", err
-				}
-				if chk == info.Checksum {
-					fmt.Printf("%s: no local changes\n", fullPath)
-					return "dooo", nil
-				} else {
-					fmt.Println("File has changed locally, needs upload")
-					changedLocally = true
+			for _, m := range matches {
+				if strings.Contains(fullPath, m.PublicId) {
+					// Current file checksum
+					chk, err := fileChecksum(fullPath)
+					if err != nil {
+						return "", err
+					}
+					if chk == m.Checksum {
+						if s.verbose {
+							fmt.Printf("%s: no local changes\n", fullPath)
+						}
+						return "dooo", nil
+					} else {
+						fmt.Println("File has changed locally, needs upload")
+						changedLocally = true
+					}
+					break
 				}
 			}
 		} else {
