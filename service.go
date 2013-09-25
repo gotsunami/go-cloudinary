@@ -18,11 +18,13 @@ import (
 	"io"
 	"io/ioutil"
 	"labix.org/v2/mgo"
+	"labix.org/v2/mgo/bson"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -54,7 +56,8 @@ type Service struct {
 	verbose       bool
 	simulate      bool     // Dry run (NOP)
 	mongoDbURI    *url.URL // Can be nil: checksum checks are disabled
-	session       *mgo.Session
+	dbSession     *mgo.Session
+	col           *mgo.Collection
 }
 
 // Resource holds information about an image or a raw file.
@@ -84,6 +87,8 @@ type uploadResponse struct {
 	Format       string `json:"format"`
 	ResourceType string `json:"resource_type"` // "image" or "raw"
 	Size         int    `json:"bytes"`         // In bytes
+	Filename     string // Local filename
+	Checksum     string // SHA1 Checksum
 }
 
 // Dial will use the url to connect to the Cloudinary service.
@@ -155,14 +160,15 @@ func (s *Service) UseDatabase(mongoDbURI string) error {
 	if s.verbose {
 		log.Printf("Connecting to database %s@%s ... ", u.Path[1:], u.Host)
 	}
-	session, err := mgo.Dial(mongoDbURI)
+	dbSession, err := mgo.Dial(mongoDbURI)
 	if err != nil {
 		return err
 	}
 	if s.verbose {
 		log.Println("Connected")
 	}
-	s.session = session
+	s.dbSession = dbSession
+	s.col = s.dbSession.DB("cloudinary").C("upload")
 	return nil
 }
 
@@ -186,6 +192,10 @@ func (s *Service) DefaultUploadURI() *url.URL {
 // return css/default.
 func cleanAssetName(path, basePath string) string {
 	var name string
+	basePath, err := filepath.Abs(basePath)
+	if err != nil {
+		basePath = ""
+	}
 	if basePath == "" {
 		idx := strings.LastIndex(path, string(os.PathSeparator))
 		if idx != -1 {
@@ -215,14 +225,42 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // Upload file to the service. When using a mongoDB database for storing
 // file information (such as checksums), the database is updated after
 // any successful upload.
-func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (string, error) {
+func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool) (string, error) {
+	// First check we have no match before sending an HTTP query
+	changedLocally := false
+	if s.dbSession != nil {
+		fname := path.Base(fullPath)
+		info := new(uploadResponse)
+		err := s.col.Find(bson.M{"filename": fname}).One(info)
+		if err == nil {
+			if strings.Contains(fullPath, info.PublicId) {
+				// Current file checksum
+				chk, err := fileChecksum(fullPath)
+				if err != nil {
+					return "", err
+				}
+				if chk == info.Checksum {
+					fmt.Printf("%s: no local changes\n", fullPath)
+					return "dooo", nil
+				} else {
+					fmt.Println("File has changed locally, needs upload")
+					changedLocally = true
+				}
+			}
+		} else {
+			// Continue if no match
+			if err != mgo.ErrNotFound {
+				return "daaa", err
+			}
+		}
+	}
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 
 	// Write public ID
 	var publicId string
 	if !randomPublicId {
-		publicId = cleanAssetName(path, s.basePathDir)
+		publicId = cleanAssetName(fullPath, s.basePathDir)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
 			return publicId, err
@@ -261,7 +299,7 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 	si.Write([]byte(signature))
 
 	// Write file field
-	fw, err := w.CreateFormFile("file", path)
+	fw, err := w.CreateFormFile("file", fullPath)
 	if err != nil {
 		return publicId, err
 	}
@@ -272,7 +310,7 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		}
 		fw.Write(tmp)
 	} else { // no file descriptor, try opening the file
-		fd, err := os.Open(path)
+		fd, err := os.Open(fullPath)
 		if err != nil {
 			return publicId, err
 		}
@@ -282,9 +320,7 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		if err != nil {
 			return publicId, err
 		}
-		if s.verbose {
-			log.Printf("Uploading %s\n", path)
-		}
+		log.Printf("Uploading %s\n", fullPath)
 	}
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
@@ -312,12 +348,24 @@ func (s *Service) uploadFile(path string, data io.Reader, randomPublicId bool) (
 		if err := dec.Decode(upInfo); err != nil {
 			return publicId, err
 		}
-		upInfo.Id = upInfo.PublicId
-		if s.session != nil {
-			// Store information in DB
-			c := s.session.DB("cloudinary").C("upload")
-			if err := c.Insert(upInfo); err != nil {
-				return publicId, err
+		// Write info to db
+		if s.dbSession != nil {
+			// Compute file's checksum
+			chk, err := fileChecksum(fullPath)
+			if err != nil {
+				return "", err
+			}
+			upInfo.Id = upInfo.PublicId // Force document id
+			upInfo.Filename = path.Base(fullPath)
+			upInfo.Checksum = chk
+			if changedLocally {
+				if err := s.col.Update(bson.M{"_id": upInfo.PublicId}, upInfo); err != nil {
+					return publicId, err
+				}
+			} else {
+				if err := s.col.Insert(upInfo); err != nil {
+					return publicId, err
+				}
 			}
 		}
 		return upInfo.PublicId, nil
@@ -432,6 +480,12 @@ func (s *Service) Delete(publicId string, rtype ResourceType) error {
 	}
 	if e, ok := m["result"]; ok {
 		fmt.Println(e.(string))
+	}
+	// Remove DB entry
+	if s.dbSession != nil {
+		if err := s.col.Remove(bson.M{"_id": publicId}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
