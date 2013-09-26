@@ -158,14 +158,14 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	if *uploadAsRaw != "" {
 		fmt.Println("Uploading as raw data ...")
-		_, err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType)
+		err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 			os.Exit(1)
 		}
 	} else if *uploadAsImg != "" {
 		fmt.Println("Uploading as images ...")
-		_, err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType)
+		err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 			os.Exit(1)

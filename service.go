@@ -216,7 +216,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	if _, err := s.uploadFile(path, nil, false); err != nil {
+	if err := s.uploadFile(path, nil, false); err != nil {
 		return err
 	}
 	return nil
@@ -225,14 +225,14 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // Upload file to the service. When using a mongoDB database for storing
 // file information (such as checksums), the database is updated after
 // any successful upload.
-func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool) (string, error) {
+func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool) error {
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if fi.Size() == 0 {
-		return "", nil
+		return nil
 		if s.verbose {
 			fmt.Println("Not uploading empty file: ", fullPath)
 		}
@@ -249,13 +249,13 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 					// Current file checksum
 					chk, err := fileChecksum(fullPath)
 					if err != nil {
-						return "", err
+						return err
 					}
 					if chk == m.Checksum {
 						if s.verbose {
 							fmt.Printf("%s: no local changes\n", fullPath)
 						}
-						return "dooo", nil
+						return nil
 					} else {
 						fmt.Println("File has changed locally, needs upload")
 						changedLocally = true
@@ -266,7 +266,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		} else {
 			// Continue if no match
 			if err != mgo.ErrNotFound {
-				return "daaa", err
+				return err
 			}
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		publicId = cleanAssetName(fullPath, s.basePathDir)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
-			return publicId, err
+			return err
 		}
 		pi.Write([]byte(publicId))
 	}
@@ -287,7 +287,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	// Write API key
 	ak, err := w.CreateFormField("api_key")
 	if err != nil {
-		return publicId, err
+		return err
 	}
 	ak.Write([]byte(s.apiKey))
 
@@ -295,7 +295,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	ts, err := w.CreateFormField("timestamp")
 	if err != nil {
-		return publicId, err
+		return err
 	}
 	ts.Write([]byte(timestamp))
 
@@ -310,31 +310,31 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 
 	si, err := w.CreateFormField("signature")
 	if err != nil {
-		return publicId, err
+		return err
 	}
 	si.Write([]byte(signature))
 
 	// Write file field
 	fw, err := w.CreateFormFile("file", fullPath)
 	if err != nil {
-		return publicId, err
+		return err
 	}
 	if data != nil { // file descriptor given
 		tmp, err := ioutil.ReadAll(data)
 		if err != nil {
-			return publicId, err
+			return err
 		}
 		fw.Write(tmp)
 	} else { // no file descriptor, try opening the file
 		fd, err := os.Open(fullPath)
 		if err != nil {
-			return publicId, err
+			return err
 		}
 		defer fd.Close()
 
 		_, err = io.Copy(fw, fd)
 		if err != nil {
-			return publicId, err
+			return err
 		}
 		log.Printf("Uploading %s\n", fullPath)
 	}
@@ -347,13 +347,13 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	}
 	req, err := http.NewRequest("POST", upURI, buf)
 	if err != nil {
-		return "", err
+		return err
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	resp, err := http.DefaultClient.Do(req)
 
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if resp.StatusCode == http.StatusOK {
@@ -362,31 +362,31 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		dec := json.NewDecoder(resp.Body)
 		upInfo := new(uploadResponse)
 		if err := dec.Decode(upInfo); err != nil {
-			return publicId, err
+			return err
 		}
 		// Write info to db
 		if s.dbSession != nil {
 			// Compute file's checksum
 			chk, err := fileChecksum(fullPath)
 			if err != nil {
-				return "", err
+				return err
 			}
 			upInfo.Id = upInfo.PublicId // Force document id
 			upInfo.Filename = path.Base(fullPath)
 			upInfo.Checksum = chk
 			if changedLocally {
 				if err := s.col.Update(bson.M{"_id": upInfo.PublicId}, upInfo); err != nil {
-					return publicId, err
+					return err
 				}
 			} else {
 				if err := s.col.Insert(upInfo); err != nil {
-					return publicId, err
+					return err
 				}
 			}
 		}
-		return upInfo.PublicId, nil
+		return nil
 	} else {
-		return publicId, errors.New("Request error: " + resp.Status)
+		return errors.New("Request error: " + resp.Status)
 	}
 }
 
@@ -411,19 +411,19 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 // /tmp/images/logo.png will be stored as images/logo.
 //
 // The function returns the public identifier of the resource.
-func (s *Service) Upload(path string, data io.Reader, randomPublicId bool, rtype ResourceType) (string, error) {
+func (s *Service) Upload(path string, data io.Reader, randomPublicId bool, rtype ResourceType) error {
 	s.uploadResType = rtype
 	s.basePathDir = ""
 	if data == nil {
 		info, err := os.Stat(path)
 		if err != nil {
-			return path, err
+			return err
 		}
 
 		if info.IsDir() {
 			s.basePathDir = path
 			if err := filepath.Walk(path, s.walkIt); err != nil {
-				return path, err
+				return err
 			}
 		} else {
 			return s.uploadFile(path, nil, randomPublicId)
@@ -431,7 +431,7 @@ func (s *Service) Upload(path string, data io.Reader, randomPublicId bool, rtype
 	} else {
 		return s.uploadFile(path, data, randomPublicId)
 	}
-	return path, nil
+	return nil
 }
 
 // Url returns the complete access path in the cloud to the
