@@ -65,7 +65,7 @@ func LoadConfig(path string) (*Config, error) {
 	settings.CloudinaryURI = cURI
 
 	// mongodb section is optional
-	uri, _ = c.String("mongodb", "uri")
+	uri, _ = c.String("database", "uri")
 	if uri != "" {
 		var mURI *url.URL
 		if mURI, err = url.Parse(uri); err != nil {
