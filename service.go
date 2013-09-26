@@ -340,6 +340,9 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	}
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
+	if s.simulate {
+		return nil
+	}
 
 	upURI := s.uploadURI.String()
 	if s.uploadResType == RawType {
@@ -473,6 +476,10 @@ func (s *Service) Delete(publicId string, rtype ResourceType) error {
 		"api_key":   []string{s.apiKey},
 		"public_id": []string{publicId},
 		"timestamp": []string{timestamp},
+	}
+	if s.simulate {
+		fmt.Println("ok")
+		return nil
 	}
 
 	// Signature

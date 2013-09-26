@@ -127,7 +127,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	urlImg := flag.String("urli", "", "URL to the uploaded image")
 	urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
 	verbose := flag.Bool("v", false, "verbose output")
-	simulate := flag.Bool("s", false, "simulate (dry run)")
+	simulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
@@ -154,6 +154,10 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	if err != nil {
 		fail(err.Error())
+	}
+
+	if *simulate {
+		fmt.Println("*** DRY RUN MODE ***")
 	}
 
 	if *uploadAsRaw != "" {
