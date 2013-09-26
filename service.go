@@ -158,7 +158,7 @@ func (s *Service) UseDatabase(mongoDbURI string) error {
 	s.mongoDbURI = u
 
 	if s.verbose {
-		log.Printf("Connecting to database %s@%s ... ", u.Path[1:], u.Host)
+		log.Printf("Connecting to database %s/%s ... ", u.Host, u.Path[1:])
 	}
 	dbSession, err := mgo.Dial(mongoDbURI)
 	if err != nil {
@@ -168,7 +168,7 @@ func (s *Service) UseDatabase(mongoDbURI string) error {
 		log.Println("Connected")
 	}
 	s.dbSession = dbSession
-	s.col = s.dbSession.DB("cloudinary").C("upload")
+	s.col = s.dbSession.DB(s.mongoDbURI.Path[1:]).C("sync")
 	return nil
 }
 
