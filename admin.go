@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	maxResults = 100
+	maxResults = 256
 )
 
 func (s *Service) dropAllResources(rtype ResourceType, w io.Writer) error {
