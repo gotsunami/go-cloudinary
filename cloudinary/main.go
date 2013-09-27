@@ -39,6 +39,15 @@ func (c *Config) handleEnvVars() error {
 		}
 		c.CloudinaryURI = curi
 	}
+
+	// [database]
+	if c.MongoURI != nil {
+		muri, err := handleQuery(c.MongoURI)
+		if err != nil {
+			return err
+		}
+		c.MongoURI = muri
+	}
 	return nil
 }
 
