@@ -215,6 +215,10 @@ func cleanAssetName(path, basePath string) string {
 	if err != nil {
 		basePath = ""
 	}
+	apath, err := filepath.Abs(path)
+	if err == nil {
+		path = apath
+	}
 	if basePath == "" {
 		idx := strings.LastIndex(path, string(os.PathSeparator))
 		if idx != -1 {
