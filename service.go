@@ -26,6 +26,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -46,18 +47,20 @@ const (
 )
 
 type Service struct {
-	cloudName     string
-	apiKey        string
-	apiSecret     string
-	uploadURI     *url.URL     // To upload resources
-	adminURI      *url.URL     // To use the admin API
-	uploadResType ResourceType // Upload resource type
-	basePathDir   string       // Base path directory
-	verbose       bool
-	simulate      bool     // Dry run (NOP)
-	mongoDbURI    *url.URL // Can be nil: checksum checks are disabled
-	dbSession     *mgo.Session
-	col           *mgo.Collection
+	cloudName        string
+	apiKey           string
+	apiSecret        string
+	uploadURI        *url.URL     // To upload resources
+	adminURI         *url.URL     // To use the admin API
+	uploadResType    ResourceType // Upload resource type
+	basePathDir      string       // Base path directory
+	verbose          bool
+	simulate         bool // Dry run (NOP)
+	keepFilesPattern *regexp.Regexp
+
+	mongoDbURI *url.URL // Can be nil: checksum checks are disabled
+	dbSession  *mgo.Session
+	col        *mgo.Collection
 }
 
 // Resource holds information about an image or a raw file.
@@ -141,6 +144,22 @@ func (s *Service) Verbose(v bool) {
 // Simulate show what would occur but actualy don't do anything. This is a dry-run.
 func (s *Service) Simulate(v bool) {
 	s.simulate = v
+}
+
+// KeepFiles sets a regex pattern of remote public ids that won't be deleted
+// by any Delete() command. This can be useful to forbid deletion of some
+// remote resources. This regexp pattern applies to both image and raw data
+// types.
+func (s *Service) KeepFiles(pattern string) error {
+	if len(strings.TrimSpace(pattern)) == 0 {
+		return nil
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return err
+	}
+	s.keepFilesPattern = re
+	return nil
 }
 
 // UseDatabase connects to a mongoDB database and stores upload JSON
@@ -252,7 +271,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 						return err
 					}
 					if chk == m.Checksum {
-						if s.verbose {
+						if s.verbose || s.simulate {
 							fmt.Printf("%s: no local changes\n", fullPath)
 						}
 						return nil
@@ -476,6 +495,12 @@ func (s *Service) Delete(publicId string, rtype ResourceType) error {
 		"api_key":   []string{s.apiKey},
 		"public_id": []string{publicId},
 		"timestamp": []string{timestamp},
+	}
+	if s.keepFilesPattern != nil {
+		if s.keepFilesPattern.MatchString(publicId) {
+			fmt.Println("keep")
+			return nil
+		}
 	}
 	if s.simulate {
 		fmt.Println("ok")

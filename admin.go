@@ -46,7 +46,8 @@ func (s *Service) dropAllResources(rtype ResourceType, w io.Writer) error {
 				fmt.Fprintf(w, "Deleting %s ... ", publicId)
 			}
 			if err := s.Delete(publicId, rtype); err != nil {
-				return err
+				// Do not return. Report the error but continue through the list.
+				fmt.Fprintf(w, "Error: %s: %s\n", publicId, err.Error())
 			}
 		}
 		if e, ok := m["next_cursor"]; ok {

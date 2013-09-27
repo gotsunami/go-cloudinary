@@ -16,8 +16,9 @@ import (
 )
 
 type Config struct {
-	CloudinaryURI *url.URL
-	MongoURI      *url.URL
+	CloudinaryURI    *url.URL
+	MongoURI         *url.URL
+	KeepFilesPattern string
 }
 
 var service *cloudinary.Service
@@ -64,7 +65,14 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	settings.CloudinaryURI = cURI
 
-	// mongodb section is optional
+	// Keep files regexp? (optional)
+	var pattern string
+	pattern, _ = c.String("cloudinary", "keepfiles")
+	if pattern != "" {
+		settings.KeepFilesPattern = pattern
+	}
+
+	// mongodb section (optional)
 	uri, _ = c.String("database", "uri")
 	if uri != "" {
 		var mURI *url.URL
@@ -72,6 +80,8 @@ func LoadConfig(path string) (*Config, error) {
 			return nil, errors.New(fmt.Sprint("mongoDB URI: ", err.Error()))
 		}
 		settings.MongoURI = mURI
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: database not set (upload sync disabled)\n")
 	}
 
 	// Looks for env variables, perform substitutions if needed
@@ -150,6 +160,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	service, err = cloudinary.Dial(settings.CloudinaryURI.String())
 	service.Verbose(*verbose)
 	service.Simulate(*simulate)
+	service.KeepFiles(settings.KeepFilesPattern)
 	if settings.MongoURI != nil {
 		if err := service.UseDatabase(settings.MongoURI.String()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error connecting to mongoDB: %s\n", err.Error())
