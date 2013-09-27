@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package cloudinary provides support for managing static assets
-// on the Cloudinary service.
-//
-// The Cloudinary service allows image and raw files management in
-// the cloud.
 package cloudinary
 
 import (
