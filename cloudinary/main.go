@@ -101,6 +101,11 @@ func printResources(res []*cloudinary.Resource, err error) {
 	}
 }
 
+func perror(err error) {
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+	os.Exit(1)
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] settings.conf \n", os.Args[0]))
@@ -162,33 +167,39 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	if *uploadAsRaw != "" {
 		fmt.Println("Uploading as raw data ...")
-		err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-			os.Exit(1)
+		if err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType); err != nil {
+			perror(err)
 		}
 	} else if *uploadAsImg != "" {
 		fmt.Println("Uploading as images ...")
-		err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
-			os.Exit(1)
+		if err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType); err != nil {
+			perror(err)
 		}
 	} else if *dropImg != "" {
 		fmt.Printf("Deleting image %s ...\n", *dropImg)
-		service.Delete(*dropImg, cloudinary.ImageType)
+		if err := service.Delete(*dropImg, cloudinary.ImageType); err != nil {
+			perror(err)
+		}
 	} else if *dropRaw != "" {
 		fmt.Printf("Deleting raw file %s ...\n", *dropRaw)
-		service.Delete(*dropRaw, cloudinary.RawType)
+		if err := service.Delete(*dropRaw, cloudinary.RawType); err != nil {
+			perror(err)
+		}
 	} else if *dropAll {
 		fmt.Println("Drop all")
-		service.DropAll(os.Stdout)
+		if err := service.DropAll(os.Stdout); err != nil {
+			perror(err)
+		}
 	} else if *dropAllImages {
 		fmt.Println("Drop all images")
-		service.DropAllImages(os.Stdout)
+		if err := service.DropAllImages(os.Stdout); err != nil {
+			perror(err)
+		}
 	} else if *dropAllRaws {
 		fmt.Println("Drop all raw files")
-		service.DropAllRaws(os.Stdout)
+		if err := service.DropAllRaws(os.Stdout); err != nil {
+			perror(err)
+		}
 	} else if *listImages {
 		printResources(service.Resources(cloudinary.ImageType))
 	} else if *listRaws {
