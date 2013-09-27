@@ -125,6 +125,10 @@ func perror(err error) {
 	os.Exit(1)
 }
 
+func step(caption string) {
+	fmt.Printf("==> %s\n", caption)
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] settings.conf \n", os.Args[0]))
@@ -186,37 +190,37 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	}
 
 	if *uploadAsRaw != "" {
-		fmt.Println("Uploading as raw data ...")
+		step("Uploading as raw data")
 		if err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType); err != nil {
 			perror(err)
 		}
 	} else if *uploadAsImg != "" {
-		fmt.Println("Uploading as images ...")
+		step("Uploading as images")
 		if err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType); err != nil {
 			perror(err)
 		}
 	} else if *dropImg != "" {
-		fmt.Printf("Deleting image %s ...\n", *dropImg)
+		step(fmt.Sprintf("Deleting image %s", *dropImg))
 		if err := service.Delete(*dropImg, cloudinary.ImageType); err != nil {
 			perror(err)
 		}
 	} else if *dropRaw != "" {
-		fmt.Printf("Deleting raw file %s ...\n", *dropRaw)
+		step(fmt.Sprintf("Deleting raw file %s", *dropRaw))
 		if err := service.Delete(*dropRaw, cloudinary.RawType); err != nil {
 			perror(err)
 		}
 	} else if *dropAll {
-		fmt.Println("Drop all")
+		step("Drop all")
 		if err := service.DropAll(os.Stdout); err != nil {
 			perror(err)
 		}
 	} else if *dropAllImages {
-		fmt.Println("Drop all images")
+		step("Drop all images")
 		if err := service.DropAllImages(os.Stdout); err != nil {
 			perror(err)
 		}
 	} else if *dropAllRaws {
-		fmt.Println("Drop all raw files")
+		step("Drop all raw files")
 		if err := service.DropAllRaws(os.Stdout); err != nil {
 			perror(err)
 		}
@@ -230,6 +234,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		fmt.Println(service.Url(*urlRaw, cloudinary.RawType))
 	}
 
+	fmt.Println("")
 	if err != nil {
 		fail(err.Error())
 	}

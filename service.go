@@ -275,12 +275,18 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 						return err
 					}
 					if chk == m.Checksum {
-						if s.verbose || s.simulate {
+						if s.verbose {
 							fmt.Printf("%s: no local changes\n", fullPath)
+						} else {
+							fmt.Printf(".")
 						}
 						return nil
 					} else {
-						fmt.Println("File has changed locally, needs upload")
+						if s.verbose {
+							fmt.Println("File has changed locally, needs upload")
+						} else {
+							fmt.Printf("U")
+						}
 						changedLocally = true
 					}
 					break
