@@ -8,8 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/matm/go-cloudinary"
-	"github.com/outofpluto/goconfig/config"
+	"github.com/bouticfactory/go-cloudinary"
+	"github.com/bouticfactory/goconfig/config"
 	"net/url"
 	"os"
 	"strings"
@@ -191,12 +191,12 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	if *uploadAsRaw != "" {
 		step("Uploading as raw data")
-		if err := service.Upload(*uploadAsRaw, nil, false, cloudinary.RawType); err != nil {
+		if _, err := service.UploadStaticRaw(*uploadAsRaw, nil); err != nil {
 			perror(err)
 		}
 	} else if *uploadAsImg != "" {
 		step("Uploading as images")
-		if err := service.Upload(*uploadAsImg, nil, false, cloudinary.ImageType); err != nil {
+		if _, err := service.UploadStaticImage(*uploadAsImg, nil); err != nil {
 			perror(err)
 		}
 	} else if *dropImg != "" {
