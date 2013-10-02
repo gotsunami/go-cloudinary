@@ -251,10 +251,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId, invalidate bool) (string, error) {
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
-	if err != nil {
-		return fullPath, err
-	}
-	if fi.Size() == 0 {
+	if err == nil && fi.Size() == 0 {
 		return fullPath, nil
 		if s.verbose {
 			fmt.Println("Not uploading empty file: ", fullPath)
@@ -477,7 +474,7 @@ func (s *Service) Upload(path string, data io.Reader, randomPublicId, invalidate
 		if err != nil {
 			return path, err
 		}
-
+		
 		if info.IsDir() {
 			s.basePathDir = path
 			if err := filepath.Walk(path, s.walkIt); err != nil {
