@@ -249,7 +249,6 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // file information (such as checksums), the database is updated after
 // any successful upload.
 func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId, invalidate bool) (string, error) {
-	fmt.Println("uploading ", fullPath)
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
 	if err == nil && fi.Size() == 0 {
@@ -423,7 +422,6 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId, in
 				}
 			}
 		}
-		fmt.Println("uploaded to ", upInfo.PublicId)
 		return upInfo.PublicId, nil
 	} else {
 		return fullPath, errors.New("Request error: " + resp.Status)
