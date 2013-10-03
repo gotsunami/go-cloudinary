@@ -249,6 +249,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // file information (such as checksums), the database is updated after
 // any successful upload.
 func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId, invalidate bool) (string, error) {
+	fmt.Println("uploading ", fullPath)
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
 	if err == nil && fi.Size() == 0 {
@@ -422,6 +423,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId, in
 				}
 			}
 		}
+		fmt.Println("uploaded to ", upInfo.PublicId)
 		return upInfo.PublicId, nil
 	} else {
 		return fullPath, errors.New("Request error: " + resp.Status)
@@ -438,11 +440,11 @@ func (s *Service) UploadStaticImage(path string, data io.Reader) (string, error)
 }
 
 func (s *Service) UploadRaw(path string, data io.Reader) (string, error) {
-	return s.Upload(path, data, true, false, RawType)
+	return s.Upload(path, data, false, false, RawType)
 }
 
 func (s *Service) UploadImage(path string, data io.Reader) (string, error) {
-	return s.Upload(path, data, true, false, ImageType)
+	return s.Upload(path, data, false, false, ImageType)
 }
 
 // Upload a file or a set of files to the cloud. The path parameter is
