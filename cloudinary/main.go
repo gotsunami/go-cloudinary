@@ -8,8 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/matm/go-cloudinary"
-	"github.com/outofpluto/goconfig/config"
+	"github.com/bouticfactory/go-cloudinary"
+	"github.com/bouticfacfory/goconfig/config"
 	"net/url"
 	"os"
 	"strings"
@@ -19,6 +19,7 @@ type Config struct {
 	CloudinaryURI    *url.URL
 	MongoURI         *url.URL
 	KeepFilesPattern string
+	PrependPath		 string
 }
 
 var service *cloudinary.Service
@@ -38,6 +39,16 @@ func (c *Config) handleEnvVars() error {
 			return err
 		}
 		c.CloudinaryURI = curi
+	}
+	if len(c.PrependPath) == 0 {
+		// [global]
+		if len(c.ProdTag) > 0 {
+			ptag, err := replaceEnvVars(c.ProdTag)
+			if err != nil {
+				return err
+			}
+			c.PrependPath = ensureTrailingSlash(ptag)
+		}
 	}
 
 	// [database]
@@ -73,6 +84,11 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, errors.New(fmt.Sprint("cloudinary URI: ", err.Error()))
 	}
 	settings.CloudinaryURI = cURI
+
+	// An optional remote prepend path
+	path, err := c.String("cloudinary", "prepend"); err == nil {
+		settings.PrependPath = ensureTrailingSlash(path)
+	}
 
 	// Keep files regexp? (optional)
 	var pattern string
@@ -191,12 +207,12 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	if *uploadAsRaw != "" {
 		step("Uploading as raw data")
-		if _, err := service.UploadStaticRaw(*uploadAsRaw, nil); err != nil {
+		if _, err := service.UploadStaticRaw(*uploadAsRaw, nil, settings.PrependPath); err != nil {
 			perror(err)
 		}
 	} else if *uploadAsImg != "" {
 		step("Uploading as images")
-		if _, err := service.UploadStaticImage(*uploadAsImg, nil); err != nil {
+		if _, err := service.UploadStaticImage(*uploadAsImg, nil, settings.PrependPath); err != nil {
 			perror(err)
 		}
 	} else if *dropImg != "" {
