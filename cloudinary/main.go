@@ -225,12 +225,12 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		}
 	} else if *dropImg != "" {
 		step(fmt.Sprintf("Deleting image %s", *dropImg))
-		if err := service.Delete(*dropImg, cloudinary.ImageType); err != nil {
+		if err := service.Delete(*dropImg, settings.PrependPath, cloudinary.ImageType); err != nil {
 			perror(err)
 		}
 	} else if *dropRaw != "" {
 		step(fmt.Sprintf("Deleting raw file %s", *dropRaw))
-		if err := service.Delete(*dropRaw, cloudinary.RawType); err != nil {
+		if err := service.Delete(*dropRaw, settings.PrependPath, cloudinary.RawType); err != nil {
 			perror(err)
 		}
 	} else if *dropAll {
