@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -91,7 +90,6 @@ type uploadResponse struct {
 	Format       string `json:"format"`
 	ResourceType string `json:"resource_type"` // "image" or "raw"
 	Size         int    `json:"bytes"`         // In bytes
-	Filename     string // Local filename
 	Checksum     string // SHA1 Checksum
 }
 
@@ -266,40 +264,31 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	// First check we have no match before sending an HTTP query
 	changedLocally := false
 	if s.dbSession != nil {
-		fname := path.Base(fullPath)
-		matches := make([]*uploadResponse, 0)
-		err := s.col.Find(bson.M{"filename": fname}).All(&matches)
-		if err == nil {
-			for _, m := range matches {
-				if strings.Contains(fullPath, m.PublicId) {
-					// Current file checksum
-					chk, err := fileChecksum(fullPath)
-					if err != nil {
-						return fullPath, err
-					}
-					if chk == m.Checksum {
-						if s.verbose {
-							fmt.Printf("%s: no local changes\n", fullPath)
-						} else {
-							fmt.Printf(".")
-						}
-						return fullPath, nil
-					} else {
-						if s.verbose {
-							fmt.Println("File has changed locally, needs upload")
-						} else {
-							fmt.Printf("U")
-						}
-						changedLocally = true
-					}
-					break
-				}
-			}
-		} else {
-			// Continue if no match
-			if err != mgo.ErrNotFound {
+		publicId := cleanAssetName(fullPath, s.basePathDir, s.prependPath)
+		match := &uploadResponse{}
+		err := s.col.Find(bson.M{"_id": publicId}).One(&match)
+		if err != nil {
 				return fullPath, err
+		}
+		// Current file checksum
+		chk, err := fileChecksum(fullPath)
+		if err != nil {
+			return fullPath, err
+		}
+		if chk == match.Checksum {
+			if s.verbose {
+				fmt.Printf("%s: no local changes\n", fullPath)
+			} else {
+				fmt.Printf(".")
 			}
+			return fullPath, nil
+		} else {
+			if s.verbose {
+				fmt.Println("File has changed locally, needs upload")
+			} else {
+				fmt.Printf("U")
+			}
+			changedLocally = true
 		}
 	}
 	buf := new(bytes.Buffer)
@@ -407,7 +396,6 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 				return fullPath, err
 			}
 			upInfo.Id = upInfo.PublicId // Force document id
-			upInfo.Filename = path.Base(fullPath)
 			upInfo.Checksum = chk
 			if changedLocally {
 				if err := s.col.Update(bson.M{"_id": upInfo.PublicId}, upInfo); err != nil {
