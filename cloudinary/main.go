@@ -8,8 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/bouticfactory/go-cloudinary"
-	"github.com/bouticfacfory/goconfig/config"
+	"github.com/matm/go-cloudinary"
+	"github.com/outofpluto/goconfig/config"
 	"net/url"
 	"os"
 	"strings"
@@ -19,6 +19,7 @@ type Config struct {
 	CloudinaryURI    *url.URL
 	MongoURI         *url.URL
 	KeepFilesPattern string
+	ProdTag			 string
 	PrependPath		 string
 }
 
@@ -86,9 +87,10 @@ func LoadConfig(path string) (*Config, error) {
 	settings.CloudinaryURI = cURI
 
 	// An optional remote prepend path
-	path, err := c.String("cloudinary", "prepend"); err == nil {
-		settings.PrependPath = ensureTrailingSlash(path)
+	if prepend, err := c.String("cloudinary", "prepend"); err == nil {
+		settings.PrependPath = ensureTrailingSlash(prepend)
 	}
+	settings.ProdTag, _ = c.String("global", "prodtag")
 
 	// Keep files regexp? (optional)
 	var pattern string
@@ -205,6 +207,12 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		fmt.Println("*** DRY RUN MODE ***")
 	}
 
+	if len(settings.PrependPath) > 0 {
+		fmt.Println("/!\\ Remote prepend path set to: ", settings.PrependPath)
+	} else {
+		fmt.Println("/!\\ No remote prepend path set")
+	}
+	
 	if *uploadAsRaw != "" {
 		step("Uploading as raw data")
 		if _, err := service.UploadStaticRaw(*uploadAsRaw, nil, settings.PrependPath); err != nil {

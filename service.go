@@ -54,6 +54,7 @@ type Service struct {
 	adminURI         *url.URL     // To use the admin API
 	uploadResType    ResourceType // Upload resource type
 	basePathDir      string       // Base path directory
+	prependPath		 string		  // Remote prepend path
 	verbose          bool
 	simulate         bool // Dry run (NOP)
 	keepFilesPattern *regexp.Regexp
@@ -207,9 +208,14 @@ func (s *Service) DefaultUploadURI() *url.URL {
 }
 
 // cleanAssetName returns an asset name from the parent dirname and
-// the file name without extension. The path /tmp/css/default.css will
-// return css/default.
-func cleanAssetName(path, basePath string) string {
+// the file name without extension.
+// The combination
+//   path=/tmp/css/default.css
+//   basePath=/tmp/
+//   prependPath=new/
+// will return
+//   new/css/default
+func cleanAssetName(path, basePath, prependPath string) string {
 	var name string
 	basePath, err := filepath.Abs(basePath)
 	if err != nil {
@@ -232,7 +238,7 @@ func cleanAssetName(path, basePath string) string {
 			name = name[1:]
 		}
 	}
-	return name[:len(name)-len(filepath.Ext(name))]
+	return prependPath+name[:len(name)-len(filepath.Ext(name))]
 }
 
 func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
@@ -302,7 +308,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	// Write public ID
 	var publicId string
 	if !randomPublicId {
-		publicId = cleanAssetName(fullPath, s.basePathDir)
+		publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
 			return fullPath, err
@@ -460,6 +466,7 @@ func (s *Service) UploadImage(path string, data io.Reader, prepend string) (stri
 func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType) (string, error) {
 	s.uploadResType = rtype
 	s.basePathDir = ""
+	s.prependPath = prepend
 	if data == nil {
 		info, err := os.Stat(path)
 		if err != nil {
@@ -467,7 +474,7 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 		}
 		
 		if info.IsDir() {
-			s.basePathDir = path+prepend
+			s.basePathDir = path
 			if err := filepath.Walk(path, s.walkIt); err != nil {
 				return path, err
 			}
@@ -512,16 +519,16 @@ func handleHttpResponse(resp *http.Response) (map[string]interface{}, error) {
 }
 
 // Delete deletes a resource uploaded to Cloudinary.
-func (s *Service) Delete(publicId string, rtype ResourceType) error {
+func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 	// TODO: also delete resource entry from database (if used)
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	data := url.Values{
 		"api_key":   []string{s.apiKey},
-		"public_id": []string{publicId},
+		"public_id": []string{prepend+publicId},
 		"timestamp": []string{timestamp},
 	}
 	if s.keepFilesPattern != nil {
-		if s.keepFilesPattern.MatchString(publicId) {
+		if s.keepFilesPattern.MatchString(prepend+publicId) {
 			fmt.Println("keep")
 			return nil
 		}
@@ -533,7 +540,7 @@ func (s *Service) Delete(publicId string, rtype ResourceType) error {
 
 	// Signature
 	hash := sha1.New()
-	part := fmt.Sprintf("public_id=%s&timestamp=%s%s", publicId, timestamp, s.apiSecret)
+	part := fmt.Sprintf("public_id=%s&timestamp=%s%s", prepend+publicId, timestamp, s.apiSecret)
 	io.WriteString(hash, part)
 	data.Set("signature", fmt.Sprintf("%x", hash.Sum(nil)))
 
@@ -555,7 +562,7 @@ func (s *Service) Delete(publicId string, rtype ResourceType) error {
 	}
 	// Remove DB entry
 	if s.dbSession != nil {
-		if err := s.col.Remove(bson.M{"_id": publicId}); err != nil {
+		if err := s.col.Remove(bson.M{"_id": prepend+publicId}); err != nil {
 			return err
 		}
 	}
