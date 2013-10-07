@@ -265,30 +265,30 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	changedLocally := false
 	if s.dbSession != nil {
 		publicId := cleanAssetName(fullPath, s.basePathDir, s.prependPath)
+		ext := filepath.Ext(fullPath)
 		match := &uploadResponse{}
-		err := s.col.Find(bson.M{"_id": publicId}).One(&match)
-		if err != nil {
+		err := s.col.Find(bson.M{"$or": []bson.M{bson.M{"_id": publicId}, bson.M{"_id":publicId+ext}}}).One(&match)
+		if err == nil {
+			// Current file checksum
+			chk, err := fileChecksum(fullPath)
+			if err != nil {
 				return fullPath, err
-		}
-		// Current file checksum
-		chk, err := fileChecksum(fullPath)
-		if err != nil {
-			return fullPath, err
-		}
-		if chk == match.Checksum {
-			if s.verbose {
-				fmt.Printf("%s: no local changes\n", fullPath)
-			} else {
-				fmt.Printf(".")
 			}
-			return fullPath, nil
-		} else {
-			if s.verbose {
-				fmt.Println("File has changed locally, needs upload")
+			if chk == match.Checksum {
+				if s.verbose {
+					fmt.Printf("%s: no local changes\n", fullPath)
+				} else {
+					fmt.Printf(".")
+				}
+				return fullPath, nil
 			} else {
-				fmt.Printf("U")
+				if s.verbose {
+					fmt.Println("File has changed locally, needs upload")
+				} else {
+					fmt.Printf("U")
+				}
+				changedLocally = true
 			}
-			changedLocally = true
 		}
 	}
 	buf := new(bytes.Buffer)
