@@ -1,4 +1,5 @@
-// Copyright 2013 Mathias Monnerville. All rights reserved.
+// Copyright 2013 Mathias Monnerville and Anthony Baillard.
+// All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -53,7 +54,7 @@ type Service struct {
 	adminURI         *url.URL     // To use the admin API
 	uploadResType    ResourceType // Upload resource type
 	basePathDir      string       // Base path directory
-	prependPath		 string		  // Remote prepend path
+	prependPath      string       // Remote prepend path
 	verbose          bool
 	simulate         bool // Dry run (NOP)
 	keepFilesPattern *regexp.Regexp
@@ -236,7 +237,7 @@ func cleanAssetName(path, basePath, prependPath string) string {
 			name = name[1:]
 		}
 	}
-	return prependPath+name[:len(name)-len(filepath.Ext(name))]
+	return prependPath + name[:len(name)-len(filepath.Ext(name))]
 }
 
 func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
@@ -267,7 +268,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		publicId := cleanAssetName(fullPath, s.basePathDir, s.prependPath)
 		ext := filepath.Ext(fullPath)
 		match := &uploadResponse{}
-		err := s.col.Find(bson.M{"$or": []bson.M{bson.M{"_id": publicId}, bson.M{"_id":publicId+ext}}}).One(&match)
+		err := s.col.Find(bson.M{"$or": []bson.M{bson.M{"_id": publicId}, bson.M{"_id": publicId + ext}}}).One(&match)
 		if err == nil {
 			// Current file checksum
 			chk, err := fileChecksum(fullPath)
@@ -460,7 +461,7 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 		if err != nil {
 			return path, err
 		}
-		
+
 		if info.IsDir() {
 			s.basePathDir = path
 			if err := filepath.Walk(path, s.walkIt); err != nil {
@@ -512,11 +513,11 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	data := url.Values{
 		"api_key":   []string{s.apiKey},
-		"public_id": []string{prepend+publicId},
+		"public_id": []string{prepend + publicId},
 		"timestamp": []string{timestamp},
 	}
 	if s.keepFilesPattern != nil {
-		if s.keepFilesPattern.MatchString(prepend+publicId) {
+		if s.keepFilesPattern.MatchString(prepend + publicId) {
 			fmt.Println("keep")
 			return nil
 		}
@@ -550,7 +551,7 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 	}
 	// Remove DB entry
 	if s.dbSession != nil {
-		if err := s.col.Remove(bson.M{"_id": prepend+publicId}); err != nil {
+		if err := s.col.Remove(bson.M{"_id": prepend + publicId}); err != nil {
 			return err
 		}
 	}

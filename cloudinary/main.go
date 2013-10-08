@@ -1,4 +1,5 @@
-// Copyright 2013 Mathias Monnerville. All rights reserved.
+// Copyright 2013 Mathias Monnerville and Anthony Baillard.
+// All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -19,8 +20,8 @@ type Config struct {
 	CloudinaryURI    *url.URL
 	MongoURI         *url.URL
 	KeepFilesPattern string
-	ProdTag			 string
-	PrependPath		 string
+	ProdTag          string
+	PrependPath      string
 }
 
 var service *cloudinary.Service
@@ -212,7 +213,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	} else {
 		fmt.Println("/!\\ No remote prepend path set")
 	}
-	
+
 	if *uploadAsRaw != "" {
 		step("Uploading as raw data")
 		if _, err := service.UploadStaticRaw(*uploadAsRaw, nil, settings.PrependPath); err != nil {
