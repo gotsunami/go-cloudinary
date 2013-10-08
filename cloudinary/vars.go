@@ -42,12 +42,3 @@ func handleQuery(uri *url.URL) (*url.URL, error) {
 	}
 	return wuri, nil
 }
-
-// ensureTrailingSlash adds any missing trailing / at the end
-// of a directory.
-func ensureTrailingSlash(dirname string) string {
-	if !strings.HasSuffix(dirname, "/") {
-		dirname += "/"
-	}
-	return dirname
-}

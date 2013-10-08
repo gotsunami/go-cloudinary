@@ -63,7 +63,7 @@ func (c *Config) handleEnvVars() error {
 			if err != nil {
 				return err
 			}
-			c.PrependPath = ensureTrailingSlash(ptag)
+			c.PrependPath = cloudinary.EnsureTrailingSlash(ptag)
 		}
 	}
 
@@ -103,7 +103,7 @@ func LoadConfig(path string) (*Config, error) {
 
 	// An optional remote prepend path
 	if prepend, err := c.String("cloudinary", "prepend"); err == nil {
-		settings.PrependPath = ensureTrailingSlash(prepend)
+		settings.PrependPath = cloudinary.EnsureTrailingSlash(prepend)
 	}
 	settings.ProdTag, _ = c.String("global", "prodtag")
 

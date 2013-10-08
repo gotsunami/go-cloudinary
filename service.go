@@ -216,6 +216,7 @@ func (s *Service) DefaultUploadURI() *url.URL {
 //   new/css/default
 func cleanAssetName(path, basePath, prependPath string) string {
 	var name string
+	path, basePath, prependPath = strings.TrimSpace(path), strings.TrimSpace(basePath), strings.TrimSpace(prependPath)
 	basePath, err := filepath.Abs(basePath)
 	if err != nil {
 		basePath = ""
@@ -237,7 +238,22 @@ func cleanAssetName(path, basePath, prependPath string) string {
 			name = name[1:]
 		}
 	}
+	if prependPath != "" {
+		if prependPath[0] == os.PathSeparator {
+			prependPath = prependPath[1:]
+		}
+		prependPath = EnsureTrailingSlash(prependPath)
+	}
 	return prependPath + name[:len(name)-len(filepath.Ext(name))]
+}
+
+// EnsureTrailingSlash adds a missing trailing / at the end
+// of a directory name.
+func EnsureTrailingSlash(dirname string) string {
+	if !strings.HasSuffix(dirname, "/") {
+		dirname += "/"
+	}
+	return dirname
 }
 
 func (s *Service) walkIt(path string, info os.FileInfo, err error) error {

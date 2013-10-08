@@ -16,7 +16,7 @@ func TestDial(t *testing.T) {
 
 	// Not a cloudinary:// URL scheme
 	if _, err := Dial("http://localhost"); err == nil {
-		t.Error("should fail if URL scheme different of cloudinary://")
+		t.Error("should fail if URL scheme different from cloudinary://")
 	}
 
 	// Missing API secret (password)?
@@ -83,5 +83,30 @@ func TestUseDatabase(t *testing.T) {
 	if err := s.UseDatabase("baduri::"); err == nil {
 		t.Error("should fail on bad uri")
 	}
+	// Bad scheme
+	if err := s.UseDatabase("http://localhost"); err == nil {
+		t.Error("should fail if URL scheme different from mongodb://")
+	}
+	if err := s.UseDatabase("mongodb://localhost/cloudinary"); err != nil {
+		t.Error("please ensure you have a running MongoDB server on localhost")
+	}
+	if s.dbSession == nil || s.col == nil {
+		t.Error("service's dbSession and col should not be nil")
+	}
+}
 
+func TestCleanAssetName(t *testing.T) {
+	assets := [][4]string{
+		// order: path, basepath, prepend, expected result
+		{"/tmp/css/default.css", "/tmp/", "new", "new/css/default"},
+		{"/a/b/c.png", "/a", "", "b/c"},
+		{"/a/b/c.png", "/a ", "  ", "b/c"}, // With spaces
+		{"/a/b/c.png", "", "/x", "x/a/b/c"},
+	}
+	for _, p := range assets {
+		c := cleanAssetName(p[0], p[1], p[2])
+		if c != p[3] {
+			t.Errorf("wrong cleaned name. Expect '%s', got '%s'", p[3], c)
+		}
+	}
 }
