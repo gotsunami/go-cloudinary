@@ -17,11 +17,25 @@ import (
 )
 
 type Config struct {
-	CloudinaryURI    *url.URL
-	MongoURI         *url.URL
+	// Url to the CLoudinary service.
+	CloudinaryURI *url.URL
+	// Url to a MongoDB instance, used to track files and upload
+	// only changed. Optional.
+	MongoURI *url.URL
+	// Regexp pattern to prevent remote file deletion.
 	KeepFilesPattern string
-	ProdTag          string
-	PrependPath      string
+	// An optional remote prepend path, used to generate a unique
+	// data path to a remote resource. This can be useful if public
+	// ids are not random (i.e provided as request arguments) to solve
+	// any caching issue: a different prepend path generates a new path
+	// to the remote resource.
+	PrependPath string
+	// ProdTag is an alias to PrependPath. If PrependPath is empty but
+	// ProdTag is set (with at prodtag= line in the [global] section of
+	// the config file), PrependPath is set to ProdTag. For example, it
+	// can be used with a DVCS commit tag to force new remote data paths
+	// to remote resources.
+	ProdTag string
 }
 
 var service *cloudinary.Service
