@@ -568,7 +568,7 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 	// Remove DB entry
 	if s.dbSession != nil {
 		if err := s.col.Remove(bson.M{"_id": prepend + publicId}); err != nil {
-			return err
+			return errors.New("can't remove entry from DB: " + err.Error())
 		}
 	}
 	return nil
