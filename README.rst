@@ -58,7 +58,8 @@ Use the ``rm`` action to delete resources and give the ``-i`` or ``-r`` ``public
     $ cloudinary -i img/home rm settings.conf
     $ cloudinary -r media/js/jquery-min.js rm settings.conf
 
-You may want to use the ``-a -i`` or ``-a -r`` combo to delete all remote resources. Delete all remote
-images with::
+Delete all remote resources(!) with::
 
-    $ cloudinary -a -i rm settings.conf
+    $ cloudinary -a rm settings.conf
+    
+In any case, you can always use the ``-s`` flag to simulate an action and see what result to expect.
