@@ -164,10 +164,15 @@ func step(caption string) {
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] settings.conf \n", os.Args[0]))
+		fmt.Fprintf(os.Stderr, fmt.Sprintf("Usage: %s [options] action settings.conf \n", os.Args[0]))
 		fmt.Fprintf(os.Stderr, `
-The config file is a plain text file with a [cloudinary] section, e.g
+Actions:
+ls          list all remote resources
+rm          delete a remote resource
+up          upload a local resource
+url         get the URL of of a remote resource
 
+The config file is a plain text file with a [cloudinary] section, e.g
 [cloudinary]
 uri=cloudinary://api_key:api_secret@cloud_name
 `)
@@ -176,36 +181,55 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		os.Exit(2)
 	}
 
-	uploadAsRaw := flag.String("upr", "", "path to the file or directory to upload as raw files")
-	uploadAsImg := flag.String("upi", "", "path to the file or directory to upload as image files")
-	dropImg := flag.String("rmi", "", "delete remote image by public_id")
-	dropRaw := flag.String("rmr", "", "delete remote raw file by public_id")
-	dropAll := flag.Bool("rmall", false, "delete all (images and raw) remote files")
-	dropAllImages := flag.Bool("rmalli", false, "delete all remote images files")
-	dropAllRaws := flag.Bool("rmallr", false, "delete all remote raw files")
-	listImages := flag.Bool("lsi", false, "List all remote images")
-	listRaws := flag.Bool("lsr", false, "List all remote raw files")
-	urlImg := flag.String("urli", "", "URL to the uploaded image")
-	urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
-	verbose := flag.Bool("v", false, "verbose output")
-	simulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
+	/*
+		uploadAsRaw := flag.String("upr", "", "path to the file or directory to upload as raw files")
+		uploadAsImg := flag.String("upi", "", "path to the file or directory to upload as image files")
+		dropImg := flag.String("rmi", "", "delete remote image by public_id")
+		dropRaw := flag.String("rmr", "", "delete remote raw file by public_id")
+		dropAll := flag.Bool("rmall", false, "delete all (images and raw) remote files")
+		dropAllImages := flag.Bool("rmalli", false, "delete all remote images files")
+		dropAllRaws := flag.Bool("rmallr", false, "delete all remote raw files")
+		listImages := flag.Bool("lsi", false, "List all remote images")
+		listRaws := flag.Bool("lsr", false, "List all remote raw files")
+		urlImg := flag.String("urli", "", "URL to the uploaded image")
+		urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
+		verbose := flag.Bool("v", false, "verbose output")
+		simulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
+	*/
+	optRaw := flag.String("r", "", "raw filename or public id")
+	optImg := flag.String("i", "", "image filename or public id")
+	optVerbose := flag.Bool("v", false, "verbose output")
+	optSimulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
+	optAll := flag.Bool("a", false, "applies to all resource files")
 	flag.Parse()
 
-	if len(flag.Args()) != 1 {
-		fmt.Fprint(os.Stderr, "Missing config file\n")
+	if len(flag.Args()) != 2 {
+		flag.Usage()
+	}
+
+	action := flag.Arg(0)
+	supportedAction := func(act string) bool {
+		switch act {
+		case "ls", "rm", "up", "url":
+			return true
+		}
+		return false
+	}(action)
+	if !supportedAction {
+		fmt.Fprintf(os.Stderr, "Unknown action '%s'\n", action)
 		flag.Usage()
 	}
 
 	var err error
-	settings, err := LoadConfig(flag.Arg(0))
+	settings, err := LoadConfig(flag.Arg(1))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %s\n", flag.Arg(0), err.Error())
+		fmt.Fprintf(os.Stderr, "%s: %s\n", flag.Arg(1), err.Error())
 		os.Exit(1)
 	}
 
 	service, err = cloudinary.Dial(settings.CloudinaryURI.String())
-	service.Verbose(*verbose)
-	service.Simulate(*simulate)
+	service.Verbose(*optVerbose)
+	service.Simulate(*optSimulate)
 	service.KeepFiles(settings.KeepFilesPattern)
 	if settings.MongoURI != nil {
 		if err := service.UseDatabase(settings.MongoURI.String()); err != nil {
@@ -218,7 +242,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		fail(err.Error())
 	}
 
-	if *simulate {
+	if *optSimulate {
 		fmt.Println("*** DRY RUN MODE ***")
 	}
 
@@ -228,49 +252,62 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		fmt.Println("/!\\ No remote prepend path set")
 	}
 
-	if *uploadAsRaw != "" {
-		step("Uploading as raw data")
-		if _, err := service.UploadStaticRaw(*uploadAsRaw, nil, settings.PrependPath); err != nil {
-			perror(err)
+	switch action {
+	case "up":
+		if *optRaw == "" && *optImg == "" {
+			fail("Missing -i or -r option.")
 		}
-	} else if *uploadAsImg != "" {
-		step("Uploading as images")
-		if _, err := service.UploadStaticImage(*uploadAsImg, nil, settings.PrependPath); err != nil {
-			perror(err)
+		if *optRaw != "" {
+			step("Uploading as raw data")
+			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath); err != nil {
+				perror(err)
+			}
+		} else {
+			step("Uploading as images")
+			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath); err != nil {
+				perror(err)
+			}
 		}
-	} else if *dropImg != "" {
-		step(fmt.Sprintf("Deleting image %s", *dropImg))
-		if err := service.Delete(*dropImg, settings.PrependPath, cloudinary.ImageType); err != nil {
-			perror(err)
+		break
+
+	case "rm":
+		if *optAll {
+			step(fmt.Sprintf("Deleting all resources..."))
+			if err := service.DropAll(os.Stdout); err != nil {
+				perror(err)
+			}
+		} else {
+			if *optRaw == "" && *optImg == "" {
+				fail("Missing -i or -r option.")
+			}
+			if *optRaw != "" {
+				step(fmt.Sprintf("Deleting raw file %s", *optRaw))
+				if err := service.Delete(*optRaw, settings.PrependPath, cloudinary.RawType); err != nil {
+					perror(err)
+				}
+			} else {
+				step(fmt.Sprintf("Deleting image %s", *optImg))
+				if err := service.Delete(*optImg, settings.PrependPath, cloudinary.ImageType); err != nil {
+					perror(err)
+				}
+			}
 		}
-	} else if *dropRaw != "" {
-		step(fmt.Sprintf("Deleting raw file %s", *dropRaw))
-		if err := service.Delete(*dropRaw, settings.PrependPath, cloudinary.RawType); err != nil {
-			perror(err)
-		}
-	} else if *dropAll {
-		step("Drop all")
-		if err := service.DropAll(os.Stdout); err != nil {
-			perror(err)
-		}
-	} else if *dropAllImages {
-		step("Drop all images")
-		if err := service.DropAllImages(os.Stdout); err != nil {
-			perror(err)
-		}
-	} else if *dropAllRaws {
-		step("Drop all raw files")
-		if err := service.DropAllRaws(os.Stdout); err != nil {
-			perror(err)
-		}
-	} else if *listImages {
-		printResources(service.Resources(cloudinary.ImageType))
-	} else if *listRaws {
+
+	case "ls":
+		fmt.Println("==> Raw resources:")
 		printResources(service.Resources(cloudinary.RawType))
-	} else if *urlImg != "" {
-		fmt.Println(service.Url(*urlImg, cloudinary.ImageType))
-	} else if *urlRaw != "" {
-		fmt.Println(service.Url(*urlRaw, cloudinary.RawType))
+		fmt.Println("==> Images:")
+		printResources(service.Resources(cloudinary.ImageType))
+
+	case "url":
+		if *optRaw == "" && *optImg == "" {
+			fail("Missing -i or -r option.")
+		}
+		if *optRaw != "" {
+			fmt.Println(service.Url(*optRaw, cloudinary.RawType))
+		} else {
+			fmt.Println(service.Url(*optImg, cloudinary.ImageType))
+		}
 	}
 
 	fmt.Println("")
