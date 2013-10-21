@@ -15,6 +15,12 @@ Install the CLI tool and the library with::
 Usage
 -----
 
+Usage::
+
+    cloudinary [options] action settings.conf
+    
+where action is one of ``ls``, ``rm``, ``up`` or ``url``.
+
 Create a config file ``settings.conf`` with a ``[cloudinary]`` section::
 
     [cloudinary]
@@ -22,57 +28,38 @@ Create a config file ``settings.conf`` with a ``[cloudinary]`` section::
 
 Type ``cloudinary`` in the terminal to get some help.
 
-Uploading Images
-~~~~~~~~~~~~~~~~
+Uploading files
+~~~~~~~~~~~~~~~
 
-Use the ``-upi`` flag to upload an image (or a directory of images) to Cloudinary::
+Use the ``up`` action to upload an image (or a directory of images) to Cloudinary with ``-i`` option::
 
-    $ cloudinary -upi /path/to/img.png settings.conf
-    $ cloudinary -upi /path/to/images/ settings.conf
+    $ cloudinary -i /path/to/img.png up settings.conf
+    $ cloudinary -i /path/to/images/ up settings.conf
+    
+In order to upload raw files, use the ``-r`` option. For example, a CSS file can be upload with::
 
-Uploading Raw Files
-~~~~~~~~~~~~~~~~~~~
-
-Use the ``-upr`` flag to upload files as raw files (no image processing at all) to Cloudinary::
-
-    $ cloudinary -upr /path/to/img.png settings.conf
-    $ cloudinary -upr /path/to/css/ settings.conf
+    $ cloudinary -r /path/to/default.css up settings.conf
 
 Raw files can be of any type (css, js, pdf etc.), even images if you don't
 care about not using Cloudinary's image processing features.
 
-List Remote Images
-~~~~~~~~~~~~~~~~~~
-
-Use the ``-lsi`` flag for listing remote images::
-
-    $ cloudinary -lsi settings.conf
-
-List Remote Raw Files
+List Remote Resources
 ~~~~~~~~~~~~~~~~~~~~~
 
-Use the ``-lsr`` flag for listing remote raw files::
+Using the ``ls`` action will list all uploaded images and raw files::
 
-    $ cloudinary -lsr settings.conf
+    $ cloudinary ls settings.conf
 
-Delete Remote Images
-~~~~~~~~~~~~~~~~~~~~
-
-Use the ``-rmi`` flag to delete a remote image by ``public_id``::
-
-    $ cloudinary -rmi img/home settings.conf
-
-You may want to use the ``-rmalli`` flag to delete all remote images::
-
-    $ cloudinary -rmalli settings.conf
-
-Delete Remote Raw Files
+Delete Remote Resources
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Use the ``-rmr`` flag to delete a remote image by ``public_id``::
+Use the ``rm`` action to delete resources and give the ``-i`` or ``-r`` ``public_id`` for the resource::
 
-    $ cloudinary -rmr css/default.css settings.conf
+    $ cloudinary -i img/home rm settings.conf
+    $ cloudinary -r media/js/jquery-min.js rm settings.conf
 
-You may want to use the ``-rmallr`` flag to delete all remote images::
+Delete all remote resources(!) with::
 
-    $ cloudinary -rmallr settings.conf
+    $ cloudinary -a rm settings.conf
+    
+In any case, you can always use the ``-s`` flag to simulate an action and see what result to expect.
