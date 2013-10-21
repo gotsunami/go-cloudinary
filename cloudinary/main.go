@@ -181,21 +181,6 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		os.Exit(2)
 	}
 
-	/*
-		uploadAsRaw := flag.String("upr", "", "path to the file or directory to upload as raw files")
-		uploadAsImg := flag.String("upi", "", "path to the file or directory to upload as image files")
-		dropImg := flag.String("rmi", "", "delete remote image by public_id")
-		dropRaw := flag.String("rmr", "", "delete remote raw file by public_id")
-		dropAll := flag.Bool("rmall", false, "delete all (images and raw) remote files")
-		dropAllImages := flag.Bool("rmalli", false, "delete all remote images files")
-		dropAllRaws := flag.Bool("rmallr", false, "delete all remote raw files")
-		listImages := flag.Bool("lsi", false, "List all remote images")
-		listRaws := flag.Bool("lsr", false, "List all remote raw files")
-		urlImg := flag.String("urli", "", "URL to the uploaded image")
-		urlRaw := flag.String("urlr", "", "URL to the uploaded raw file")
-		verbose := flag.Bool("v", false, "verbose output")
-		simulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
-	*/
 	optRaw := flag.String("r", "", "raw filename or public id")
 	optImg := flag.String("i", "", "image filename or public id")
 	optVerbose := flag.Bool("v", false, "verbose output")
