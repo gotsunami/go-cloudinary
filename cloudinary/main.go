@@ -9,11 +9,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/matm/go-cloudinary"
-	"github.com/outofpluto/goconfig/config"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/gotsunami/go-cloudinary"
+	"github.com/outofpluto/goconfig/config"
 )
 
 type Config struct {
