@@ -245,7 +245,8 @@ func cleanAssetName(path, basePath, prependPath string) string {
 		}
 		prependPath = EnsureTrailingSlash(prependPath)
 	}
-	return prependPath + name[:len(name)-len(filepath.Ext(name))]
+	r := prependPath + name[:len(name)-len(filepath.Ext(name))]
+	return strings.Replace(r, string(os.PathSeparator), "/", -1)
 }
 
 // EnsureTrailingSlash adds a missing trailing / at the end
