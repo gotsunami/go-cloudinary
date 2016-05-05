@@ -398,6 +398,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	if err != nil {
 		return fullPath, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		// Body is JSON data and looks like:
