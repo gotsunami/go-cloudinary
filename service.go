@@ -323,7 +323,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		}
 		pi.Write([]byte(publicId))
 	}
-
+	log.Println(publicId)
 	// Write API key
 	ak, err := w.CreateFormField("api_key")
 	if err != nil {
@@ -342,6 +342,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	// Write signature
 	hash := sha1.New()
 	part := fmt.Sprintf("timestamp=%s%s", timestamp, s.apiSecret)
+	fmt.Println(s.apiSecret)
 	if !randomPublicId {
 		part = fmt.Sprintf("public_id=%s&%s", publicId, part)
 	}
@@ -385,6 +386,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	}
 
 	upURI := s.uploadURI.String()
+	log.Println(upURI)
 	if s.uploadResType == RawType {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
@@ -573,6 +575,37 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 		if err := s.col.Remove(bson.M{"_id": prepend + publicId}); err != nil {
 			return errors.New("can't remove entry from DB: " + err.Error())
 		}
+	}
+	return nil
+}
+
+func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceType) error {
+
+	timestamp := fmt.Sprintf(`%d`, time.Now().Unix())
+	data := url.Values{
+		"api_key":      []string{s.apiKey},
+		"public_id":    []string{prepend + publicID},
+		"timestamp":    []string{timestamp},
+		"to_public_id": []string{prepend + toPublicID},
+	}
+	// Signature
+	hash := sha1.New()
+	part := fmt.Sprintf("public_id=%s&timestamp=%s%s", prepend+publicID, timestamp, s.apiSecret)
+	io.WriteString(hash, part)
+	data.Set("signature", fmt.Sprintf("%x", hash.Sum(nil)))
+
+	rt := imageType
+	if rtype == RawType {
+		rt = rawType
+	}
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/rename", baseUploadUrl, s.cloudName, rt), data)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		data, _ := ioutil.ReadAll(resp.Body)
+		return errors.New(string(data))
 	}
 	return nil
 }
