@@ -580,17 +580,18 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 }
 
 func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceType) error {
-
+	publicID = strings.TrimPrefix(publicID, "/")
+	toPublicID = strings.TrimPrefix(toPublicID, "/")
 	timestamp := fmt.Sprintf(`%d`, time.Now().Unix())
 	data := url.Values{
-		"api_key":      []string{s.apiKey},
-		"public_id":    []string{prepend + publicID},
-		"timestamp":    []string{timestamp},
-		"to_public_id": []string{prepend + toPublicID},
+		"api_key":        []string{s.apiKey},
+		"from_public_id": []string{prepend + publicID},
+		"timestamp":      []string{timestamp},
+		"to_public_id":   []string{prepend + toPublicID},
 	}
 	// Signature
 	hash := sha1.New()
-	part := fmt.Sprintf("public_id=%s&timestamp=%s%s", prepend+publicID, timestamp, s.apiSecret)
+	part := fmt.Sprintf("from_public_id=%s&timestamp=%s&to_public_id=%s%s", prepend+publicID, timestamp, toPublicID, s.apiSecret)
 	io.WriteString(hash, part)
 	data.Set("signature", fmt.Sprintf("%x", hash.Sum(nil)))
 
@@ -603,9 +604,10 @@ func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceTyp
 		return err
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		data, _ := ioutil.ReadAll(resp.Body)
-		return errors.New(string(data))
+		body, _ := ioutil.ReadAll(resp.Body)
+		return errors.New(string(body))
 	}
 	return nil
 }
