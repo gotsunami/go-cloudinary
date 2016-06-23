@@ -323,7 +323,6 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		}
 		pi.Write([]byte(publicId))
 	}
-	log.Println(publicId)
 	// Write API key
 	ak, err := w.CreateFormField("api_key")
 	if err != nil {
@@ -342,7 +341,6 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	// Write signature
 	hash := sha1.New()
 	part := fmt.Sprintf("timestamp=%s%s", timestamp, s.apiSecret)
-	fmt.Println(s.apiSecret)
 	if !randomPublicId {
 		part = fmt.Sprintf("public_id=%s&%s", publicId, part)
 	}
@@ -386,7 +384,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	}
 
 	upURI := s.uploadURI.String()
-	log.Println(upURI)
+
 	if s.uploadResType == RawType {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
