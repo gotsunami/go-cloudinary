@@ -245,7 +245,8 @@ func cleanAssetName(path, basePath, prependPath string) string {
 		}
 		prependPath = EnsureTrailingSlash(prependPath)
 	}
-	return prependPath + name[:len(name)-len(filepath.Ext(name))]
+	r := prependPath + name[:len(name)-len(filepath.Ext(name))]
+	return strings.Replace(r, string(os.PathSeparator), "/", -1)
 }
 
 // EnsureTrailingSlash adds a missing trailing / at the end
@@ -322,7 +323,6 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		}
 		pi.Write([]byte(publicId))
 	}
-
 	// Write API key
 	ak, err := w.CreateFormField("api_key")
 	if err != nil {
@@ -384,6 +384,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	}
 
 	upURI := s.uploadURI.String()
+
 	if s.uploadResType == RawType {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
@@ -397,6 +398,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	if err != nil {
 		return fullPath, err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		// Body is JSON data and looks like:
@@ -571,6 +573,39 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 		if err := s.col.Remove(bson.M{"_id": prepend + publicId}); err != nil {
 			return errors.New("can't remove entry from DB: " + err.Error())
 		}
+	}
+	return nil
+}
+
+func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceType) error {
+	publicID = strings.TrimPrefix(publicID, "/")
+	toPublicID = strings.TrimPrefix(toPublicID, "/")
+	timestamp := fmt.Sprintf(`%d`, time.Now().Unix())
+	data := url.Values{
+		"api_key":        []string{s.apiKey},
+		"from_public_id": []string{prepend + publicID},
+		"timestamp":      []string{timestamp},
+		"to_public_id":   []string{prepend + toPublicID},
+	}
+	// Signature
+	hash := sha1.New()
+	part := fmt.Sprintf("from_public_id=%s&timestamp=%s&to_public_id=%s%s", prepend+publicID, timestamp, toPublicID, s.apiSecret)
+	io.WriteString(hash, part)
+	data.Set("signature", fmt.Sprintf("%x", hash.Sum(nil)))
+
+	rt := imageType
+	if rtype == RawType {
+		rt = rawType
+	}
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/rename", baseUploadUrl, s.cloudName, rt), data)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return errors.New(string(body))
 	}
 	return nil
 }
