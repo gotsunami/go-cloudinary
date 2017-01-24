@@ -258,6 +258,10 @@ func EnsureTrailingSlash(dirname string) string {
 	return dirname
 }
 
+func isHTTP(path string) bool {
+	return strings.HasPrefix(path, "http")
+}
+
 func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
@@ -313,10 +317,15 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 
+	isHTTP := isHTTP(fullPath)
 	// Write public ID
 	var publicId string
 	if !randomPublicId {
-		publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
+		if isHTTP {
+			publicId = strings.Split(filepath.Base(fullPath), "?")[0]
+		} else {
+			publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
+		}
 		pi, err := w.CreateFormField("public_id")
 		if err != nil {
 			return fullPath, err
@@ -354,28 +363,36 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	si.Write([]byte(signature))
 
 	// Write file field
-	fw, err := w.CreateFormFile("file", fullPath)
-	if err != nil {
-		return fullPath, err
-	}
-	if data != nil { // file descriptor given
-		tmp, err := ioutil.ReadAll(data)
+	if isHTTP {
+		ff, err := w.CreateFormField("file")
 		if err != nil {
 			return fullPath, err
 		}
-		fw.Write(tmp)
-	} else { // no file descriptor, try opening the file
-		fd, err := os.Open(fullPath)
+		ff.Write([]byte(fullPath))
+	} else {
+		fw, err := w.CreateFormFile("file", fullPath)
 		if err != nil {
 			return fullPath, err
 		}
-		defer fd.Close()
+		if data != nil { // file descriptor given
+			tmp, err := ioutil.ReadAll(data)
+			if err != nil {
+				return fullPath, err
+			}
+			fw.Write(tmp)
+		} else { // no file descriptor, try opening the file
+			fd, err := os.Open(fullPath)
+			if err != nil {
+				return fullPath, err
+			}
+			defer fd.Close()
 
-		_, err = io.Copy(fw, fd)
-		if err != nil {
-			return fullPath, err
+			_, err = io.Copy(fw, fd)
+			if err != nil {
+				return fullPath, err
+			}
+			log.Printf("Uploading %s\n", fullPath)
 		}
-		log.Printf("Uploading %s\n", fullPath)
 	}
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
@@ -476,6 +493,9 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 	s.basePathDir = ""
 	s.prependPath = prepend
 	if data == nil {
+		if isHTTP(path) {
+			return s.uploadFile(path, nil, randomPublicId)
+		}
 		info, err := os.Stat(path)
 		if err != nil {
 			return path, err
