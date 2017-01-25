@@ -123,6 +123,7 @@ type uploadResponse struct {
 
 type UploadOptions struct {
 	ResourceAccess ResourceAccess
+	PublicId       string
 }
 
 func defaultUploadOptions() UploadOptions {
@@ -357,7 +358,9 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	// Write public ID
 	var publicId string
 	if !randomPublicId {
-		if isHTTP {
+		if len(uploadOptions.PublicId) > 0 {
+			publicId = uploadOptions.PublicId
+		} else if isHTTP {
 			publicId = strings.Split(filepath.Base(fullPath), "?")[0]
 		} else {
 			publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
@@ -506,7 +509,7 @@ func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string, u
 }
 
 func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
-	return s.Upload(path, data, prepend, true, ImageType, uploadOptions)
+	return s.Upload(path, data, prepend, false, ImageType, uploadOptions)
 }
 
 func (s *Service) UploadRaw(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {

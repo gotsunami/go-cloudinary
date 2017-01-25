@@ -184,6 +184,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	optRaw := flag.String("r", "", "raw filename or public id")
 	optImg := flag.String("i", "", "image filename or public id")
+	optPublicId := flag.String("p", "", "Use with up to set your own public id")
 	optAccess := flag.String("c", "", "image access. Accept: upload | private")
 	optVerbose := flag.Bool("v", false, "verbose output")
 	optSimulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
@@ -252,14 +253,18 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		if *optRaw == "" && *optImg == "" {
 			fail("Missing -i or -r option.")
 		}
+		uo := cloudinary.UploadOptions{
+			ResourceAccess: ra,
+			PublicId:       *optPublicId,
+		}
 		if *optRaw != "" {
 			step("Uploading as raw data")
-			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath, cloudinary.UploadOptions{ResourceAccess: ra}); err != nil {
+			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath, uo); err != nil {
 				perror(err)
 			}
 		} else {
 			step("Uploading as images")
-			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath, cloudinary.UploadOptions{ResourceAccess: ra}); err != nil {
+			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath, uo); err != nil {
 				perror(err)
 			}
 		}
