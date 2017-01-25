@@ -40,12 +40,38 @@ const (
 	rawType         = "raw"
 )
 
-type ResourceType int
+type (
+	ResourceType   int
+	ResourceAccess int
+)
 
 const (
 	ImageType ResourceType = iota
 	RawType
 )
+
+const (
+	PublicAccess ResourceAccess = iota
+	PrivateAccess
+)
+
+var resourceAccesses = [...]string{
+	"upload",
+	"private",
+}
+
+func (r ResourceAccess) String() string {
+	return resourceAccesses[r]
+}
+
+func ParseResourceAccess(s string) (ResourceAccess, error) {
+	for i, v := range resourceAccesses {
+		if s == v {
+			return ResourceAccess(i), nil
+		}
+	}
+	return -1, fmt.Errorf("Invalid ResourceAccess: %s", s)
+}
 
 type Service struct {
 	cloudName        string
@@ -266,7 +292,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	if _, err := s.uploadFile(path, nil, false); err != nil {
+	if _, err := s.uploadFile(path, nil, false, PublicAccess); err != nil {
 		return err
 	}
 	return nil
@@ -275,7 +301,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // Upload file to the service. When using a mongoDB database for storing
 // file information (such as checksums), the database is updated after
 // any successful upload.
-func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool) (string, error) {
+func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool, rAccess ResourceAccess) (string, error) {
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
 	if err == nil && fi.Size() == 0 {
@@ -347,14 +373,24 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	}
 	ts.Write([]byte(timestamp))
 
+	// Write type
+	ra := rAccess.String()
+	ty, err := w.CreateFormField("type")
+	if err != nil {
+		return fullPath, err
+	}
+	ty.Write([]byte(ra))
+
 	// Write signature
 	hash := sha1.New()
-	part := fmt.Sprintf("timestamp=%s%s", timestamp, s.apiSecret)
+	part := fmt.Sprintf("timestamp=%s", timestamp)
+	part = fmt.Sprintf("%s&type=%s%s", part, ra, s.apiSecret)
 	if !randomPublicId {
 		part = fmt.Sprintf("public_id=%s&%s", publicId, part)
 	}
 	io.WriteString(hash, part)
 	signature := fmt.Sprintf("%x", hash.Sum(nil))
+	fmt.Printf("part %s\nsignature %s\n", part, signature)
 
 	si, err := w.CreateFormField("signature")
 	if err != nil {
@@ -420,6 +456,8 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	if resp.StatusCode == http.StatusOK {
 		// Body is JSON data and looks like:
 		// {"public_id":"Downloads/file","version":1369431906,"format":"png","resource_type":"image"}
+		body, _ := ioutil.ReadAll(resp.Body)
+		fmt.Printf("body %+v", string(body))
 		dec := json.NewDecoder(resp.Body)
 		upInfo := new(uploadResponse)
 		if err := dec.Decode(upInfo); err != nil {
@@ -446,25 +484,27 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		}
 		return upInfo.PublicId, nil
 	} else {
+		body, _ := ioutil.ReadAll(resp.Body)
+		fmt.Printf("body %+v", string(body))
 		return fullPath, errors.New("Request error: " + resp.Status)
 	}
 }
 
 // helpers
-func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, RawType)
+func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
+	return s.Upload(path, data, prepend, false, RawType, rAccess)
 }
 
-func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, ImageType)
+func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
+	return s.Upload(path, data, prepend, false, ImageType, rAccess)
 }
 
-func (s *Service) UploadRaw(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, RawType)
+func (s *Service) UploadRaw(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
+	return s.Upload(path, data, prepend, false, RawType, rAccess)
 }
 
-func (s *Service) UploadImage(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, ImageType)
+func (s *Service) UploadImage(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
+	return s.Upload(path, data, prepend, false, ImageType, rAccess)
 }
 
 // Upload a file or a set of files to the cloud. The path parameter is
@@ -488,13 +528,13 @@ func (s *Service) UploadImage(path string, data io.Reader, prepend string) (stri
 // /tmp/images/logo.png will be stored as images/logo.
 //
 // The function returns the public identifier of the resource.
-func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType) (string, error) {
+func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType, rAccess ResourceAccess) (string, error) {
 	s.uploadResType = rtype
 	s.basePathDir = ""
 	s.prependPath = prepend
 	if data == nil {
 		if isHTTP(path) {
-			return s.uploadFile(path, nil, randomPublicId)
+			return s.uploadFile(path, nil, randomPublicId, rAccess)
 		}
 		info, err := os.Stat(path)
 		if err != nil {
@@ -507,10 +547,10 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 				return path, err
 			}
 		} else {
-			return s.uploadFile(path, nil, randomPublicId)
+			return s.uploadFile(path, nil, randomPublicId, rAccess)
 		}
 	} else {
-		return s.uploadFile(path, data, randomPublicId)
+		return s.uploadFile(path, data, randomPublicId, rAccess)
 	}
 	return path, nil
 }

@@ -184,6 +184,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 
 	optRaw := flag.String("r", "", "raw filename or public id")
 	optImg := flag.String("i", "", "image filename or public id")
+	optAccess := flag.String("c", "", "image access. Accept: upload | private")
 	optVerbose := flag.Bool("v", false, "verbose output")
 	optSimulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
 	optAll := flag.Bool("a", false, "applies to all resource files")
@@ -238,6 +239,14 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		fmt.Println("/!\\ No remote prepend path set")
 	}
 
+	ra := cloudinary.PublicAccess
+	if len(*optAccess) > 0 {
+		ra, err = cloudinary.ParseResourceAccess(*optAccess)
+		if err != nil {
+			fail(err.Error())
+		}
+	}
+
 	switch action {
 	case "up":
 		if *optRaw == "" && *optImg == "" {
@@ -245,12 +254,12 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		}
 		if *optRaw != "" {
 			step("Uploading as raw data")
-			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath); err != nil {
+			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath, ra); err != nil {
 				perror(err)
 			}
 		} else {
 			step("Uploading as images")
-			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath); err != nil {
+			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath, ra); err != nil {
 				perror(err)
 			}
 		}
