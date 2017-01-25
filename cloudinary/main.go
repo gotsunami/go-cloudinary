@@ -254,12 +254,12 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		}
 		if *optRaw != "" {
 			step("Uploading as raw data")
-			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath, ra); err != nil {
+			if _, err := service.UploadStaticRaw(*optRaw, nil, settings.PrependPath, cloudinary.UploadOptions{ResourceAccess: ra}); err != nil {
 				perror(err)
 			}
 		} else {
 			step("Uploading as images")
-			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath, ra); err != nil {
+			if _, err := service.UploadStaticImage(*optImg, nil, settings.PrependPath, cloudinary.UploadOptions{ResourceAccess: ra}); err != nil {
 				perror(err)
 			}
 		}

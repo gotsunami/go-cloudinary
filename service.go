@@ -121,6 +121,16 @@ type uploadResponse struct {
 	Checksum     string // SHA1 Checksum
 }
 
+type UploadOptions struct {
+	ResourceAccess ResourceAccess
+}
+
+func defaultUploadOptions() UploadOptions {
+	return UploadOptions{
+		ResourceAccess: PublicAccess,
+	}
+}
+
 // Dial will use the url to connect to the Cloudinary service.
 // The uri parameter must be a valid URI with the cloudinary:// scheme,
 // e.g.
@@ -292,7 +302,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	if _, err := s.uploadFile(path, nil, false, PublicAccess); err != nil {
+	if _, err := s.uploadFile(path, nil, false, defaultUploadOptions()); err != nil {
 		return err
 	}
 	return nil
@@ -301,7 +311,7 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 // Upload file to the service. When using a mongoDB database for storing
 // file information (such as checksums), the database is updated after
 // any successful upload.
-func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool, rAccess ResourceAccess) (string, error) {
+func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool, uploadOptions UploadOptions) (string, error) {
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
 	if err == nil && fi.Size() == 0 {
@@ -374,7 +384,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	ts.Write([]byte(timestamp))
 
 	// Write type
-	ra := rAccess.String()
+	ra := uploadOptions.ResourceAccess.String()
 	ty, err := w.CreateFormField("type")
 	if err != nil {
 		return fullPath, err
@@ -491,20 +501,20 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 }
 
 // helpers
-func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
-	return s.Upload(path, data, prepend, false, RawType, rAccess)
+func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, RawType, uploadOptions)
 }
 
-func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
-	return s.Upload(path, data, prepend, false, ImageType, rAccess)
+func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, true, ImageType, uploadOptions)
 }
 
-func (s *Service) UploadRaw(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
-	return s.Upload(path, data, prepend, false, RawType, rAccess)
+func (s *Service) UploadRaw(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, RawType, uploadOptions)
 }
 
-func (s *Service) UploadImage(path string, data io.Reader, prepend string, rAccess ResourceAccess) (string, error) {
-	return s.Upload(path, data, prepend, false, ImageType, rAccess)
+func (s *Service) UploadImage(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, ImageType, uploadOptions)
 }
 
 // Upload a file or a set of files to the cloud. The path parameter is
@@ -528,13 +538,13 @@ func (s *Service) UploadImage(path string, data io.Reader, prepend string, rAcce
 // /tmp/images/logo.png will be stored as images/logo.
 //
 // The function returns the public identifier of the resource.
-func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType, rAccess ResourceAccess) (string, error) {
+func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType, uploadOptions UploadOptions) (string, error) {
 	s.uploadResType = rtype
 	s.basePathDir = ""
 	s.prependPath = prepend
 	if data == nil {
 		if isHTTP(path) {
-			return s.uploadFile(path, nil, randomPublicId, rAccess)
+			return s.uploadFile(path, nil, randomPublicId, uploadOptions)
 		}
 		info, err := os.Stat(path)
 		if err != nil {
@@ -547,10 +557,10 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 				return path, err
 			}
 		} else {
-			return s.uploadFile(path, nil, randomPublicId, rAccess)
+			return s.uploadFile(path, nil, randomPublicId, uploadOptions)
 		}
 	} else {
-		return s.uploadFile(path, data, randomPublicId, rAccess)
+		return s.uploadFile(path, data, randomPublicId, uploadOptions)
 	}
 	return path, nil
 }
