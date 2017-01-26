@@ -185,7 +185,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 	optRaw := flag.String("r", "", "raw filename or public id")
 	optImg := flag.String("i", "", "image filename or public id")
 	optPublicId := flag.String("p", "", "Use with up to set your own public id")
-	optAccess := flag.String("c", "", "image access. Accept: upload | private")
+	optAction := flag.String("c", "", "image action. Accepted value: upload | private")
 	optVerbose := flag.Bool("v", false, "verbose output")
 	optSimulate := flag.Bool("s", false, "simulate, do nothing (dry run)")
 	optAll := flag.Bool("a", false, "applies to all resource files")
@@ -240,9 +240,9 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		fmt.Println("/!\\ No remote prepend path set")
 	}
 
-	ra := cloudinary.PublicAccess
-	if len(*optAccess) > 0 {
-		ra, err = cloudinary.ParseResourceAccess(*optAccess)
+	rAction := cloudinary.PublicAction
+	if len(*optAction) > 0 {
+		rAction, err = cloudinary.ParseResourceAction(*optAction)
 		if err != nil {
 			fail(err.Error())
 		}
@@ -254,7 +254,7 @@ uri=cloudinary://api_key:api_secret@cloud_name
 			fail("Missing -i or -r option.")
 		}
 		uo := cloudinary.UploadOptions{
-			ResourceAccess: ra,
+			ResourceAction: rAction,
 			PublicId:       *optPublicId,
 		}
 		if *optRaw != "" {
@@ -304,9 +304,9 @@ uri=cloudinary://api_key:api_secret@cloud_name
 			fail("Missing -i or -r option.")
 		}
 		if *optRaw != "" {
-			fmt.Println(service.Url(*optRaw, cloudinary.RawType))
+			fmt.Println(service.Url(*optRaw, rAction, cloudinary.RawType))
 		} else {
-			fmt.Println(service.Url(*optImg, cloudinary.ImageType))
+			fmt.Println(service.Url(*optImg, rAction, cloudinary.ImageType))
 		}
 	}
 

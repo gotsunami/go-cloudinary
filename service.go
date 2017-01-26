@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ import (
 )
 
 const (
-	baseUploadUrl   = "http://api.cloudinary.com/v1_1"
+	baseApiUrl      = "http://api.cloudinary.com/v1_1"
 	baseResourceUrl = "http://res.cloudinary.com"
 	imageType       = "image"
 	rawType         = "raw"
@@ -42,7 +43,7 @@ const (
 
 type (
 	ResourceType   int
-	ResourceAccess int
+	ResourceAction int
 )
 
 const (
@@ -51,27 +52,38 @@ const (
 )
 
 const (
-	PublicAccess ResourceAccess = iota
-	PrivateAccess
+	PublicAction ResourceAction = iota
+	PrivateAction
+	DownloadAction
 )
 
-var resourceAccesses = [...]string{
+var resourceAction = [...]string{
 	"upload",
 	"private",
+	"download",
 }
 
-func (r ResourceAccess) String() string {
-	return resourceAccesses[r]
+func (r ResourceAction) String() string {
+	return resourceAction[r]
 }
 
-func ParseResourceAccess(s string) (ResourceAccess, error) {
-	for i, v := range resourceAccesses {
+func ParseResourceAction(s string) (ResourceAction, error) {
+	for i, v := range resourceAction {
 		if s == v {
-			return ResourceAccess(i), nil
+			return ResourceAction(i), nil
 		}
 	}
-	return -1, fmt.Errorf("Invalid ResourceAccess: %s", s)
+	return -1, fmt.Errorf("Invalid ResourceAction: %s", s)
 }
+
+// Options
+const (
+	publicIdOption  = "public_id"
+	apiKeyOption    = "api_key"
+	timestampOption = "timestamp"
+	typeOption      = "type"
+	formatOption    = "format"
+)
 
 type Service struct {
 	cloudName        string
@@ -122,14 +134,23 @@ type uploadResponse struct {
 }
 
 type UploadOptions struct {
-	ResourceAccess ResourceAccess
+	ResourceAction ResourceAction
 	PublicId       string
 }
 
 func defaultUploadOptions() UploadOptions {
 	return UploadOptions{
-		ResourceAccess: PublicAccess,
+		ResourceAction: PublicAction,
 	}
+}
+
+func sortedKeys(m map[string]string) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // Dial will use the url to connect to the Cloudinary service.
@@ -158,7 +179,7 @@ func Dial(uri string) (*Service, error) {
 	}
 	// Default upload URI to the service. Can change at runtime in the
 	// Upload() function for raw file uploading.
-	up, err := url.Parse(fmt.Sprintf("%s/%s/image/upload/", baseUploadUrl, s.cloudName))
+	up, err := url.Parse(fmt.Sprintf("%s/%s/image/upload/", baseApiUrl, s.cloudName))
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +330,43 @@ func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	return nil
 }
 
+func writeField(w *multipart.Writer, fieldname, fieldValue string) error {
+	v, err := w.CreateFormField(fieldname)
+	if err != nil {
+		return err
+	}
+	_, err = v.Write([]byte(fieldValue))
+	return err
+}
+
+func timestamp() string {
+	return strconv.FormatInt(time.Now().Unix(), 10)
+}
+
+func (s *Service) signature(w *multipart.Writer, options map[string]string) (string, error) {
+
+	// Write API key
+	options[apiKeyOption] = s.apiKey
+
+	values := make([]string, 0)
+	for _, fieldname := range sortedKeys(options) {
+		err := writeField(w, fieldname, options[fieldname])
+		if err != nil {
+			return "", err
+		}
+		if fieldname != apiKeyOption {
+			values = append(values, fmt.Sprintf("%s=%s", fieldname, options[fieldname]))
+		}
+	}
+	part := fmt.Sprintf("%s%s", strings.Join(values, "&"), s.apiSecret)
+
+	// Write signature
+	hash := sha1.New()
+	io.WriteString(hash, part)
+	signature := fmt.Sprintf("%x", hash.Sum(nil))
+	return signature, writeField(w, "signature", signature)
+}
+
 // Upload file to the service. When using a mongoDB database for storing
 // file information (such as checksums), the database is updated after
 // any successful upload.
@@ -355,9 +413,10 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	w := multipart.NewWriter(buf)
 
 	isHTTP := isHTTP(fullPath)
+	options := make(map[string]string)
 	// Write public ID
-	var publicId string
 	if !randomPublicId {
+		var publicId string
 		if len(uploadOptions.PublicId) > 0 {
 			publicId = uploadOptions.PublicId
 		} else if isHTTP {
@@ -365,51 +424,15 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		} else {
 			publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
 		}
-		pi, err := w.CreateFormField("public_id")
-		if err != nil {
-			return fullPath, err
-		}
-		pi.Write([]byte(publicId))
+		options[publicIdOption] = publicId
 	}
-	// Write API key
-	ak, err := w.CreateFormField("api_key")
-	if err != nil {
-		return fullPath, err
-	}
-	ak.Write([]byte(s.apiKey))
 
 	// Write timestamp
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	ts, err := w.CreateFormField("timestamp")
-	if err != nil {
-		return fullPath, err
-	}
-	ts.Write([]byte(timestamp))
-
+	options[timestampOption] = timestamp()
 	// Write type
-	ra := uploadOptions.ResourceAccess.String()
-	ty, err := w.CreateFormField("type")
-	if err != nil {
-		return fullPath, err
-	}
-	ty.Write([]byte(ra))
-
+	options[typeOption] = uploadOptions.ResourceAction.String()
 	// Write signature
-	hash := sha1.New()
-	part := fmt.Sprintf("timestamp=%s", timestamp)
-	part = fmt.Sprintf("%s&type=%s%s", part, ra, s.apiSecret)
-	if !randomPublicId {
-		part = fmt.Sprintf("public_id=%s&%s", publicId, part)
-	}
-	io.WriteString(hash, part)
-	signature := fmt.Sprintf("%x", hash.Sum(nil))
-	fmt.Printf("part %s\nsignature %s\n", part, signature)
-
-	si, err := w.CreateFormField("signature")
-	if err != nil {
-		return fullPath, err
-	}
-	si.Write([]byte(signature))
+	s.signature(w, options)
 
 	// Write file field
 	if isHTTP {
@@ -571,12 +594,19 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 // Url returns the complete access path in the cloud to the
 // resource designed by publicId or the empty string if
 // no match.
-func (s *Service) Url(publicId string, rtype ResourceType) string {
+func (s *Service) Url(publicId string, rAction ResourceAction, rtype ResourceType) string {
 	path := imageType
 	if rtype == RawType {
 		path = rawType
 	}
-	return fmt.Sprintf("%s/%s/%s/upload/%s", baseResourceUrl, s.cloudName, path, publicId)
+	baseUrl := baseApiUrl
+	if rAction == DownloadAction {
+		baseUrl = baseApiUrl
+	}
+	if len(publicId) > 0 {
+		publicId = fmt.Sprintf("/%s", publicId)
+	}
+	return fmt.Sprintf("%s/%s/%s/%s%s", baseUrl, s.cloudName, path, rAction, publicId)
 }
 
 func handleHttpResponse(resp *http.Response) (map[string]interface{}, error) {
@@ -629,7 +659,7 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 	if rtype == RawType {
 		rt = rawType
 	}
-	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/destroy/", baseUploadUrl, s.cloudName, rt), data)
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/destroy/", baseApiUrl, s.cloudName, rt), data)
 	if err != nil {
 		return err
 	}
@@ -670,7 +700,7 @@ func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceTyp
 	if rtype == RawType {
 		rt = rawType
 	}
-	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/rename", baseUploadUrl, s.cloudName, rt), data)
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/rename", baseApiUrl, s.cloudName, rt), data)
 	if err != nil {
 		return err
 	}
@@ -681,4 +711,31 @@ func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceTyp
 		return errors.New(string(body))
 	}
 	return nil
+}
+
+func (s *Service) PrivateDownloadUrl(publicId, format string) *url.URL {
+	options := make(map[string]string)
+	options[publicIdOption] = publicId
+	options[formatOption] = format
+	// Write timestamp
+	options[timestampOption] = timestamp()
+	buf := new(bytes.Buffer)
+	w := multipart.NewWriter(buf)
+	signature, err := s.signature(w, options)
+	if err != nil {
+		panic(err)
+	}
+	w.Close()
+	v := url.Values{}
+	v.Set("signature", signature)
+	v.Set(apiKeyOption, s.apiKey)
+	v.Set(formatOption, format)
+	v.Set(publicIdOption, publicId)
+	v.Set(timestampOption, options[timestampOption])
+	u, err := url.Parse(s.Url("", DownloadAction, ImageType))
+	if err != nil {
+		panic(err)
+	}
+	u.RawQuery = v.Encode()
+	return u
 }
