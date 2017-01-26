@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -34,17 +35,54 @@ import (
 )
 
 const (
-	baseUploadUrl   = "http://api.cloudinary.com/v1_1"
+	baseApiUrl      = "http://api.cloudinary.com/v1_1"
 	baseResourceUrl = "http://res.cloudinary.com"
 	imageType       = "image"
 	rawType         = "raw"
 )
 
-type ResourceType int
+type (
+	ResourceType   int
+	ResourceAction int
+)
 
 const (
 	ImageType ResourceType = iota
 	RawType
+)
+
+const (
+	PublicAction ResourceAction = iota
+	PrivateAction
+	DownloadAction
+)
+
+var resourceAction = [...]string{
+	"upload",
+	"private",
+	"download",
+}
+
+func (r ResourceAction) String() string {
+	return resourceAction[r]
+}
+
+func ParseResourceAction(s string) (ResourceAction, error) {
+	for i, v := range resourceAction {
+		if s == v {
+			return ResourceAction(i), nil
+		}
+	}
+	return -1, fmt.Errorf("Invalid ResourceAction: %s", s)
+}
+
+// Options
+const (
+	publicIdOption  = "public_id"
+	apiKeyOption    = "api_key"
+	timestampOption = "timestamp"
+	typeOption      = "type"
+	formatOption    = "format"
 )
 
 type Service struct {
@@ -95,6 +133,26 @@ type uploadResponse struct {
 	Checksum     string // SHA1 Checksum
 }
 
+type UploadOptions struct {
+	ResourceAction ResourceAction
+	PublicId       string
+}
+
+func defaultUploadOptions() UploadOptions {
+	return UploadOptions{
+		ResourceAction: PublicAction,
+	}
+}
+
+func sortedKeys(m map[string]string) []string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // Dial will use the url to connect to the Cloudinary service.
 // The uri parameter must be a valid URI with the cloudinary:// scheme,
 // e.g.
@@ -121,7 +179,7 @@ func Dial(uri string) (*Service, error) {
 	}
 	// Default upload URI to the service. Can change at runtime in the
 	// Upload() function for raw file uploading.
-	up, err := url.Parse(fmt.Sprintf("%s/%s/image/upload/", baseUploadUrl, s.cloudName))
+	up, err := url.Parse(fmt.Sprintf("%s/%s/image/upload/", baseApiUrl, s.cloudName))
 	if err != nil {
 		return nil, err
 	}
@@ -258,20 +316,61 @@ func EnsureTrailingSlash(dirname string) string {
 	return dirname
 }
 
+func isHTTP(path string) bool {
+	return strings.HasPrefix(path, "http")
+}
+
 func (s *Service) walkIt(path string, info os.FileInfo, err error) error {
 	if info.IsDir() {
 		return nil
 	}
-	if _, err := s.uploadFile(path, nil, false); err != nil {
+	if _, err := s.uploadFile(path, nil, false, defaultUploadOptions()); err != nil {
 		return err
 	}
 	return nil
 }
 
+func writeField(w *multipart.Writer, fieldname, fieldValue string) error {
+	v, err := w.CreateFormField(fieldname)
+	if err != nil {
+		return err
+	}
+	_, err = v.Write([]byte(fieldValue))
+	return err
+}
+
+func timestamp() string {
+	return strconv.FormatInt(time.Now().Unix(), 10)
+}
+
+func (s *Service) signature(w *multipart.Writer, options map[string]string) (string, error) {
+
+	// Write API key
+	options[apiKeyOption] = s.apiKey
+
+	values := make([]string, 0)
+	for _, fieldname := range sortedKeys(options) {
+		err := writeField(w, fieldname, options[fieldname])
+		if err != nil {
+			return "", err
+		}
+		if fieldname != apiKeyOption {
+			values = append(values, fmt.Sprintf("%s=%s", fieldname, options[fieldname]))
+		}
+	}
+	part := fmt.Sprintf("%s%s", strings.Join(values, "&"), s.apiSecret)
+
+	// Write signature
+	hash := sha1.New()
+	io.WriteString(hash, part)
+	signature := fmt.Sprintf("%x", hash.Sum(nil))
+	return signature, writeField(w, "signature", signature)
+}
+
 // Upload file to the service. When using a mongoDB database for storing
 // file information (such as checksums), the database is updated after
 // any successful upload.
-func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool) (string, error) {
+func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId bool, uploadOptions UploadOptions) (string, error) {
 	// Do not upload empty files
 	fi, err := os.Stat(fullPath)
 	if err == nil && fi.Size() == 0 {
@@ -313,69 +412,59 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 
+	isHTTP := isHTTP(fullPath)
+	options := make(map[string]string)
 	// Write public ID
-	var publicId string
 	if !randomPublicId {
-		publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
-		pi, err := w.CreateFormField("public_id")
-		if err != nil {
-			return fullPath, err
+		var publicId string
+		if len(uploadOptions.PublicId) > 0 {
+			publicId = uploadOptions.PublicId
+		} else if isHTTP {
+			publicId = strings.Split(filepath.Base(fullPath), "?")[0]
+		} else {
+			publicId = cleanAssetName(fullPath, s.basePathDir, s.prependPath)
 		}
-		pi.Write([]byte(publicId))
+		options[publicIdOption] = publicId
 	}
-	// Write API key
-	ak, err := w.CreateFormField("api_key")
-	if err != nil {
-		return fullPath, err
-	}
-	ak.Write([]byte(s.apiKey))
 
 	// Write timestamp
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	ts, err := w.CreateFormField("timestamp")
-	if err != nil {
-		return fullPath, err
-	}
-	ts.Write([]byte(timestamp))
-
+	options[timestampOption] = timestamp()
+	// Write type
+	options[typeOption] = uploadOptions.ResourceAction.String()
 	// Write signature
-	hash := sha1.New()
-	part := fmt.Sprintf("timestamp=%s%s", timestamp, s.apiSecret)
-	if !randomPublicId {
-		part = fmt.Sprintf("public_id=%s&%s", publicId, part)
-	}
-	io.WriteString(hash, part)
-	signature := fmt.Sprintf("%x", hash.Sum(nil))
-
-	si, err := w.CreateFormField("signature")
-	if err != nil {
-		return fullPath, err
-	}
-	si.Write([]byte(signature))
+	s.signature(w, options)
 
 	// Write file field
-	fw, err := w.CreateFormFile("file", fullPath)
-	if err != nil {
-		return fullPath, err
-	}
-	if data != nil { // file descriptor given
-		tmp, err := ioutil.ReadAll(data)
+	if isHTTP {
+		ff, err := w.CreateFormField("file")
 		if err != nil {
 			return fullPath, err
 		}
-		fw.Write(tmp)
-	} else { // no file descriptor, try opening the file
-		fd, err := os.Open(fullPath)
+		ff.Write([]byte(fullPath))
+	} else {
+		fw, err := w.CreateFormFile("file", fullPath)
 		if err != nil {
 			return fullPath, err
 		}
-		defer fd.Close()
+		if data != nil { // file descriptor given
+			tmp, err := ioutil.ReadAll(data)
+			if err != nil {
+				return fullPath, err
+			}
+			fw.Write(tmp)
+		} else { // no file descriptor, try opening the file
+			fd, err := os.Open(fullPath)
+			if err != nil {
+				return fullPath, err
+			}
+			defer fd.Close()
 
-		_, err = io.Copy(fw, fd)
-		if err != nil {
-			return fullPath, err
+			_, err = io.Copy(fw, fd)
+			if err != nil {
+				return fullPath, err
+			}
+			log.Printf("Uploading %s\n", fullPath)
 		}
-		log.Printf("Uploading %s\n", fullPath)
 	}
 	// Don't forget to close the multipart writer to get a terminating boundary
 	w.Close()
@@ -403,6 +492,8 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 	if resp.StatusCode == http.StatusOK {
 		// Body is JSON data and looks like:
 		// {"public_id":"Downloads/file","version":1369431906,"format":"png","resource_type":"image"}
+		body, _ := ioutil.ReadAll(resp.Body)
+		fmt.Printf("body %+v", string(body))
 		dec := json.NewDecoder(resp.Body)
 		upInfo := new(uploadResponse)
 		if err := dec.Decode(upInfo); err != nil {
@@ -429,25 +520,27 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 		}
 		return upInfo.PublicId, nil
 	} else {
+		body, _ := ioutil.ReadAll(resp.Body)
+		fmt.Printf("body %+v", string(body))
 		return fullPath, errors.New("Request error: " + resp.Status)
 	}
 }
 
 // helpers
-func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, RawType)
+func (s *Service) UploadStaticRaw(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, RawType, uploadOptions)
 }
 
-func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, ImageType)
+func (s *Service) UploadStaticImage(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, ImageType, uploadOptions)
 }
 
-func (s *Service) UploadRaw(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, RawType)
+func (s *Service) UploadRaw(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, RawType, uploadOptions)
 }
 
-func (s *Service) UploadImage(path string, data io.Reader, prepend string) (string, error) {
-	return s.Upload(path, data, prepend, false, ImageType)
+func (s *Service) UploadImage(path string, data io.Reader, prepend string, uploadOptions UploadOptions) (string, error) {
+	return s.Upload(path, data, prepend, false, ImageType, uploadOptions)
 }
 
 // Upload a file or a set of files to the cloud. The path parameter is
@@ -471,11 +564,14 @@ func (s *Service) UploadImage(path string, data io.Reader, prepend string) (stri
 // /tmp/images/logo.png will be stored as images/logo.
 //
 // The function returns the public identifier of the resource.
-func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType) (string, error) {
+func (s *Service) Upload(path string, data io.Reader, prepend string, randomPublicId bool, rtype ResourceType, uploadOptions UploadOptions) (string, error) {
 	s.uploadResType = rtype
 	s.basePathDir = ""
 	s.prependPath = prepend
 	if data == nil {
+		if isHTTP(path) {
+			return s.uploadFile(path, nil, randomPublicId, uploadOptions)
+		}
 		info, err := os.Stat(path)
 		if err != nil {
 			return path, err
@@ -487,10 +583,10 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 				return path, err
 			}
 		} else {
-			return s.uploadFile(path, nil, randomPublicId)
+			return s.uploadFile(path, nil, randomPublicId, uploadOptions)
 		}
 	} else {
-		return s.uploadFile(path, data, randomPublicId)
+		return s.uploadFile(path, data, randomPublicId, uploadOptions)
 	}
 	return path, nil
 }
@@ -498,12 +594,19 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 // Url returns the complete access path in the cloud to the
 // resource designed by publicId or the empty string if
 // no match.
-func (s *Service) Url(publicId string, rtype ResourceType) string {
+func (s *Service) Url(publicId string, rAction ResourceAction, rtype ResourceType) string {
 	path := imageType
 	if rtype == RawType {
 		path = rawType
 	}
-	return fmt.Sprintf("%s/%s/%s/upload/%s", baseResourceUrl, s.cloudName, path, publicId)
+	baseUrl := baseApiUrl
+	if rAction == DownloadAction {
+		baseUrl = baseApiUrl
+	}
+	if len(publicId) > 0 {
+		publicId = fmt.Sprintf("/%s", publicId)
+	}
+	return fmt.Sprintf("%s/%s/%s/%s%s", baseUrl, s.cloudName, path, rAction, publicId)
 }
 
 func handleHttpResponse(resp *http.Response) (map[string]interface{}, error) {
@@ -556,7 +659,7 @@ func (s *Service) Delete(publicId, prepend string, rtype ResourceType) error {
 	if rtype == RawType {
 		rt = rawType
 	}
-	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/destroy/", baseUploadUrl, s.cloudName, rt), data)
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/destroy/", baseApiUrl, s.cloudName, rt), data)
 	if err != nil {
 		return err
 	}
@@ -597,7 +700,7 @@ func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceTyp
 	if rtype == RawType {
 		rt = rawType
 	}
-	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/rename", baseUploadUrl, s.cloudName, rt), data)
+	resp, err := http.PostForm(fmt.Sprintf("%s/%s/%s/rename", baseApiUrl, s.cloudName, rt), data)
 	if err != nil {
 		return err
 	}
@@ -608,4 +711,31 @@ func (s *Service) Rename(publicID, toPublicID, prepend string, rtype ResourceTyp
 		return errors.New(string(body))
 	}
 	return nil
+}
+
+func (s *Service) PrivateDownloadUrl(publicId, format string) *url.URL {
+	options := make(map[string]string)
+	options[publicIdOption] = publicId
+	options[formatOption] = format
+	// Write timestamp
+	options[timestampOption] = timestamp()
+	buf := new(bytes.Buffer)
+	w := multipart.NewWriter(buf)
+	signature, err := s.signature(w, options)
+	if err != nil {
+		panic(err)
+	}
+	w.Close()
+	v := url.Values{}
+	v.Set("signature", signature)
+	v.Set(apiKeyOption, s.apiKey)
+	v.Set(formatOption, format)
+	v.Set(publicIdOption, publicId)
+	v.Set(timestampOption, options[timestampOption])
+	u, err := url.Parse(s.Url("", DownloadAction, ImageType))
+	if err != nil {
+		panic(err)
+	}
+	u.RawQuery = v.Encode()
+	return u
 }

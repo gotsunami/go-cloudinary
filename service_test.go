@@ -36,7 +36,7 @@ func TestDial(t *testing.T) {
 	if s.cloudName != k.cloudName || s.apiKey != k.apiKey || s.apiSecret != k.apiSecret {
 		t.Errorf("wrong service instance. Expect %v, got %v", k, s)
 	}
-	uexp := fmt.Sprintf("%s/%s/image/upload/", baseUploadUrl, s.cloudName)
+	uexp := fmt.Sprintf("%s/%s/image/upload/", baseApiUrl, s.cloudName)
 	if s.uploadURI.String() != uexp {
 		t.Errorf("wrong upload URI. Expect %s, got %s", uexp, s.uploadURI.String())
 	}
