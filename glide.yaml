@@ -1,0 +1,9 @@
+package: github.com/qiscus/go-cloudinary
+import:
+- package: github.com/gotsunami/go-cloudinary
+- package: github.com/outofpluto/goconfig
+  subpackages:
+  - config
+- package: gopkg.in/mgo.v2
+  subpackages:
+  - bson
