@@ -389,7 +389,11 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 
 	upURI := s.uploadURI.String()
 
-	if s.uploadResType == RawType {
+	if s.uploadResType == PdfType {
+		upURI = strings.Replace(upURI, imageType, pdfType, 1)
+	} else if s.uploadResType == VideoType {
+		upURI = strings.Replace(upURI, imageType, videoType, 1)
+	} else if s.uploadResType == RawType {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
 	req, err := http.NewRequest("POST", upURI, buf)
