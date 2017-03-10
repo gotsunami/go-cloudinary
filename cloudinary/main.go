@@ -154,6 +154,27 @@ func printResources(res []*cloudinary.Resource, err error) {
 	}
 }
 
+func printResourceDetails(res *cloudinary.ResourceDetails, err error) {
+	if err != nil {
+		fail(err.Error())
+	}
+	if res == nil || len(res.PublicId) == 0 {
+		fmt.Println("No resource details found.")
+		return
+	}
+	fmt.Printf("%-30s %-6s %-10s %-5s %-8s %-6s %-6s %-s\n", "public_id", "Format", "Version", "Type", "Size", "Width", "Height", "Url")
+	fmt.Printf("%-30s %-6s %-10d %-5s %-8d %-6d %-6d %-s\n", res.PublicId, res.Format, res.Version, res.ResourceType, res.Size, res.Width, res.Height, res.Url)
+
+	fmt.Println()
+
+	for i, d := range res.Derived {
+		if i == 0 {
+			fmt.Printf("%-25s %-8s %-s\n", "transformation", "Size", "Url")
+		}
+		fmt.Printf("%-25s %-8d %-s\n", d.Transformation, d.Size, d.Url)
+	}
+}
+
 func perror(err error) {
 	fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 	os.Exit(1)
@@ -280,10 +301,15 @@ uri=cloudinary://api_key:api_secret@cloud_name
 		}
 
 	case "ls":
-		fmt.Println("==> Raw resources:")
-		printResources(service.Resources(cloudinary.RawType))
-		fmt.Println("==> Images:")
-		printResources(service.Resources(cloudinary.ImageType))
+		if *optImg != "" {
+			fmt.Println("==> Image Details:")
+			printResourceDetails(service.ResourceDetails(*optImg))
+		} else {
+			fmt.Println("==> Raw resources:")
+			printResources(service.Resources(cloudinary.RawType))
+			fmt.Println("==> Images:")
+			printResources(service.Resources(cloudinary.ImageType))
+		}
 
 	case "url":
 		if *optRaw == "" && *optImg == "" {

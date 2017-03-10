@@ -22,7 +22,8 @@ const (
 const (
 	pathListAllImages = "/resources/image"
 	pathListAllRaws   = "/resources/raw"
-	pathListAllVideos = "/resources/video"
+	pathListSingleImage = "/resources/image/upload/"
+  pathListAllVideos = "/resources/video"
 )
 
 const (
@@ -122,10 +123,30 @@ func (s *Service) doGetResources(rtype ResourceType) ([]*Resource, error) {
 	return allres, nil
 }
 
+func (s *Service) doGetResourceDetails(publicId string) (*ResourceDetails, error) {
+	path := pathListSingleImage
+
+	resp, err := http.Get(fmt.Sprintf("%s%s%s", s.adminURI, path, publicId))
+	if err != nil {
+		return nil, err
+	}
+	details := new(ResourceDetails)
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(details); err != nil {
+		return nil, err
+	}
+	return details, nil
+}
+
 // Resources returns a list of all uploaded resources. They can be
 // images or raw files, depending on the resource type passed in rtype.
 // Cloudinary can return a limited set of results. Pagination is supported,
 // so the full set of results is returned.
 func (s *Service) Resources(rtype ResourceType) ([]*Resource, error) {
 	return s.doGetResources(rtype)
+}
+
+// GetResourceDetails gets the details of a single resource that is specified by publicId.
+func (s *Service) ResourceDetails(publicId string) (*ResourceDetails, error) {
+	return s.doGetResourceDetails(publicId)
 }

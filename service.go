@@ -88,6 +88,25 @@ type resourceList struct {
 	Resources []*Resource `json: "resources"`
 }
 
+type ResourceDetails struct {
+	PublicId     string     `json:"public_id"`
+	Format       string     `json:"format"`
+	Version      int        `json:"version"`
+	ResourceType string     `json:"resource_type"` // image or raw
+	Size         int        `json:"bytes"`         // In bytes
+	Width        int        `json:"width"`         // Width
+	Height       int        `json:"height"`        // Height
+	Url          string     `json:"url"`           // Remote url
+	SecureUrl    string     `json:"secure_url"`    // Over https
+	Derived      []*Derived `json:"derived"`       // Derived
+}
+
+type Derived struct {
+	Transformation string `json:"transformation"` // Transformation
+	Size           int    `json:"bytes"`          // In bytes
+	Url            string `json:"url"`            // Remote url
+}
+
 // Upload response after uploading a file.
 type uploadResponse struct {
 	Id           string `bson:"_id"`
