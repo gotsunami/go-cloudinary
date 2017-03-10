@@ -63,3 +63,4 @@ Delete all remote resources(!) with::
     $ cloudinary -a rm settings.conf
     
 In any case, you can always use the ``-s`` flag to simulate an action and see what result to expect.
+i
