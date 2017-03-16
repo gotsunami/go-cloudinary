@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"github.com/qiscus/qiscus-sdk-api/api/admin/v1"
 )
 
 const (
@@ -19,9 +20,10 @@ const (
 )
 
 const (
-	pathListAllImages   = "/resources/image"
-	pathListAllRaws     = "/resources/raw"
+	pathListAllImages = "/resources/image"
+	pathListAllRaws   = "/resources/raw"
 	pathListSingleImage = "/resources/image/upload/"
+  pathListAllVideos = "/resources/video"
 )
 
 const (
@@ -93,7 +95,10 @@ func (s *Service) doGetResources(rtype ResourceType) ([]*Resource, error) {
 	path := pathListAllImages
 	if rtype == RawType {
 		path = pathListAllRaws
+	} else if rtype == VideoType {
+		path = pathListAllVideos
 	}
+
 	allres := make([]*Resource, 0)
 	for {
 		resp, err := http.Get(fmt.Sprintf("%s%s?%s", s.adminURI, path, qs.Encode()))

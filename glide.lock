@@ -1,0 +1,17 @@
+hash: 77f7a7ef626045dd80059228fddb55782e5493a752231fe9fd925d30a895adfc
+updated: 2017-02-22T16:39:26.77072092+07:00
+imports:
+- name: github.com/gotsunami/go-cloudinary
+  version: 1216300b6d57f89bfa40f47236e9f661f71a84f2
+- name: github.com/outofpluto/goconfig
+  version: 0b3e87a7e8f2b425d87a1d97b2975fb421df1a55
+  subpackages:
+  - config
+- name: gopkg.in/mgo.v2
+  version: 3f83fa5005286a7fe593b055f0d7771a7dce4655
+  subpackages:
+  - bson
+  - internal/json
+  - internal/sasl
+  - internal/scram
+testImports: []

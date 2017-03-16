@@ -34,9 +34,11 @@ import (
 )
 
 const (
-	baseUploadUrl   = "http://api.cloudinary.com/v1_1"
-	baseResourceUrl = "http://res.cloudinary.com"
+	baseUploadUrl   = "https://api.cloudinary.com/v1_1"
+	baseResourceUrl = "https://res.cloudinary.com"
 	imageType       = "image"
+	videoType       = "video"
+	pdfType         = "image"
 	rawType         = "raw"
 )
 
@@ -44,6 +46,8 @@ type ResourceType int
 
 const (
 	ImageType ResourceType = iota
+	PdfType
+	VideoType
 	RawType
 )
 
@@ -404,7 +408,11 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 
 	upURI := s.uploadURI.String()
 
-	if s.uploadResType == RawType {
+	if s.uploadResType == PdfType {
+		upURI = strings.Replace(upURI, imageType, pdfType, 1)
+	} else if s.uploadResType == VideoType {
+		upURI = strings.Replace(upURI, imageType, videoType, 1)
+	} else if s.uploadResType == RawType {
 		upURI = strings.Replace(upURI, imageType, rawType, 1)
 	}
 	req, err := http.NewRequest("POST", upURI, buf)
@@ -469,6 +477,14 @@ func (s *Service) UploadImage(path string, data io.Reader, prepend string) (stri
 	return s.Upload(path, data, prepend, false, ImageType)
 }
 
+func (s *Service) UploadVideo(path string, data io.Reader, prepend string) (string, error) {
+	return s.Upload(path, data, prepend, false, VideoType)
+}
+
+func (s *Service) UploadPdf(path string, data io.Reader, prepend string) (string, error) {
+	return s.Upload(path, data, prepend, false, PdfType)
+}
+
 // Upload a file or a set of files to the cloud. The path parameter is
 // a file location or a directory. If the source path is a directory,
 // all files are recursively uploaded to Cloudinary.
@@ -519,7 +535,11 @@ func (s *Service) Upload(path string, data io.Reader, prepend string, randomPubl
 // no match.
 func (s *Service) Url(publicId string, rtype ResourceType) string {
 	path := imageType
-	if rtype == RawType {
+	if rtype == PdfType {
+		path = pdfType
+	} else if rtype == VideoType {
+		path = videoType
+	} else if rtype == RawType {
 		path = rawType
 	}
 	return fmt.Sprintf("%s/%s/%s/upload/%s", baseResourceUrl, s.cloudName, path, publicId)
