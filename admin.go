@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"github.com/qiscus/qiscus-sdk-api/api/admin/v1"
 )
 
 const (
@@ -20,10 +19,10 @@ const (
 )
 
 const (
-	pathListAllImages = "/resources/image"
-	pathListAllRaws   = "/resources/raw"
+	pathListAllImages   = "/resources/image"
+	pathListAllRaws     = "/resources/raw"
 	pathListSingleImage = "/resources/image/upload/"
-  pathListAllVideos = "/resources/video"
+	pathListAllVideos   = "/resources/video"
 )
 
 const (
