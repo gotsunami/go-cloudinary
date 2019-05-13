@@ -116,6 +116,7 @@ type uploadResponse struct {
 	ResourceType string `json:"resource_type"` // "image" or "raw"
 	Size         int    `json:"bytes"`         // In bytes
 	Checksum     string // SHA1 Checksum
+	SecureUrl    string `json:"secure_url"`
 }
 
 // Dial will use the url to connect to the Cloudinary service.
@@ -454,7 +455,7 @@ func (s *Service) uploadFile(fullPath string, data io.Reader, randomPublicId boo
 				}
 			}
 		}
-		return upInfo.PublicId, nil
+		return upInfo.SecureUrl, nil
 	} else {
 		return fullPath, errors.New("Request error: " + resp.Status)
 	}
